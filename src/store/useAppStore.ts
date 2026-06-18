@@ -30,6 +30,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   shelfMonitors: initialShelves,
   heatmapData: initialHeatmap,
   exportRecords: [],
+  orders: [],
 
   bindPhone: (phone) => set(state => ({
     isPhoneBound: true,
@@ -156,13 +157,16 @@ export const useAppStore = create<AppState>((set, get) => ({
           }
           return b;
         });
+        const paidOrder = state.currentOrder && state.currentOrder.id === orderId ? {
+          ...state.currentOrder,
+          status: 'paid' as const,
+          paidAt: Date.now(),
+          paymentMethod: method
+        } : state.currentOrder;
         return {
-          currentOrder: state.currentOrder && state.currentOrder.id === orderId ? {
-            ...state.currentOrder,
-            status: 'paid',
-            paidAt: Date.now()
-          } : state.currentOrder,
+          currentOrder: paidOrder,
           productBehaviors: behaviors,
+          orders: paidOrder ? [paidOrder, ...state.orders] : state.orders,
           realtimeMetrics: {
             ...state.realtimeMetrics,
             todayCustomers: state.realtimeMetrics.todayCustomers + 1,
@@ -195,7 +199,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     const result = await executeExport(config, {
       metrics: state.realtimeMetrics,
       behaviors: state.productBehaviors,
-      heatmap: state.heatmapData
+      heatmap: state.heatmapData,
+      orders: state.orders
     });
     const record: ExportRecord = {
       id: randomId('exp'),

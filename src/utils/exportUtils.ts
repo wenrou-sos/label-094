@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import type { RealtimeMetrics, ProductBehavior, HeatmapData, ExportConfig } from '@/types';
+import type { RealtimeMetrics, ProductBehavior, HeatmapData, ExportConfig, Order } from '@/types';
 import { formatDateTime, formatPercent, formatCurrency } from './formatters';
 
 interface WorkSheetConfig {
@@ -77,44 +77,67 @@ export function prepareHeatmapSheet(data: HeatmapData[]): any[] {
   return rows;
 }
 
-export function prepareOrdersSheet(behaviors: ProductBehavior[]): any[] {
-  const mockOrders: any[] = [];
-  const now = new Date();
-  let total = 0;
-  for (let i = 0; i < 50; i++) {
-    const b = behaviors[i % behaviors.length];
-    const qty = Math.ceil(Math.random() * 3);
-    const d = new Date(now.getTime() - i * 3600 * 1000 * Math.random() * 6);
-    const amt = b.product.price * qty;
-    total += amt;
-    mockOrders.push({
-      '订单编号': `ORD${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}${String(100000 + i)}`,
-      '下单时间': formatDateTime(d),
-      '商品名称': b.product.name,
-      '数量': qty,
-      '单价(元)': b.product.price,
-      '订单金额(元)': amt,
-      '支付方式': Math.random() > 0.5 ? '微信支付' : '支付宝',
-      '订单状态': '已完成'
-    });
+export function prepareOrdersSheet(orders: Order[]): any[] {
+  if (orders.length === 0) {
+    return [{
+      '订单编号': '暂无数据',
+      '下单时间': '请先完成支付交易',
+      '商品名称': '-',
+      '数量': '-',
+      '单价(元)': '-',
+      '订单金额(元)': '-',
+      '支付方式': '-',
+      '订单状态': '-'
+    }];
   }
-  mockOrders.unshift({
+
+  const rows: any[] = [];
+  let totalAmount = 0;
+  let totalQty = 0;
+
+  for (const order of orders) {
+    for (const item of order.items) {
+      totalQty += item.quantity;
+      const amt = item.product.price * item.quantity;
+      totalAmount += amt;
+      rows.push({
+        '订单编号': order.id,
+        '下单时间': formatDateTime(order.createdAt),
+        '商品名称': item.product.name,
+        '数量': item.quantity,
+        '单价(元)': item.product.price,
+        '订单金额(元)': amt,
+        '支付方式': order.paymentMethod === 'wechat' ? '微信支付' : order.paymentMethod === 'alipay' ? '支付宝' : '-',
+        '订单状态': order.status === 'paid' ? '已完成' : order.status === 'failed' ? '支付失败' : order.status === 'cancelled' ? '已取消' : '待支付',
+        '支付时间': order.paidAt ? formatDateTime(order.paidAt) : '-',
+        '优惠金额(元)': order.discountAmount,
+        '实付金额(元)': order.finalAmount
+      });
+    }
+  }
+
+  rows.unshift({
     '订单编号': '【汇总】',
-    '下单时间': `共${mockOrders.length}单`,
+    '下单时间': `共${orders.length}单 / ${rows.length}条商品明细`,
     '商品名称': '-',
-    '数量': mockOrders.reduce((s: number, o: any) => s + o['数量'], 0),
+    '数量': totalQty,
     '单价(元)': '-',
-    '订单金额(元)': total,
+    '订单金额(元)': totalAmount,
     '支付方式': '-',
-    '订单状态': '-'
+    '订单状态': '-',
+    '支付时间': '-',
+    '优惠金额(元)': orders.reduce((s, o) => s + o.discountAmount, 0),
+    '实付金额(元)': orders.reduce((s, o) => s + o.finalAmount, 0)
   });
-  return mockOrders;
+
+  return rows;
 }
 
 export async function exportToXLSX(config: ExportConfig, data: {
   metrics: RealtimeMetrics;
   behaviors: ProductBehavior[];
   heatmap: HeatmapData[];
+  orders: Order[];
 }): Promise<Blob> {
   const sheets: WorkSheetConfig[] = [];
   const wb = XLSX.utils.book_new();
@@ -139,7 +162,7 @@ export async function exportToXLSX(config: ExportConfig, data: {
       break;
     case 'orders':
       sheets.push({
-        data: prepareOrdersSheet(data.behaviors),
+        data: prepareOrdersSheet(data.orders),
         sheetName: '订单记录'
       });
       break;
@@ -169,6 +192,7 @@ export async function exportToCSV(config: ExportConfig, data: {
   metrics: RealtimeMetrics;
   behaviors: ProductBehavior[];
   heatmap: HeatmapData[];
+  orders: Order[];
 }): Promise<Blob> {
   let content = '';
 
@@ -186,7 +210,7 @@ export async function exportToCSV(config: ExportConfig, data: {
       break;
     case 'orders':
       content += '=== 订单记录 ===\n';
-      content += toCSV(prepareOrdersSheet(data.behaviors)) + '\n';
+      content += toCSV(prepareOrdersSheet(data.orders)) + '\n';
       break;
     case 'metrics':
     default:
@@ -201,7 +225,7 @@ export async function exportToCSV(config: ExportConfig, data: {
 
 export async function executeExport(
   config: ExportConfig,
-  dataContext: { metrics: RealtimeMetrics; behaviors: ProductBehavior[]; heatmap: HeatmapData[] }
+  dataContext: { metrics: RealtimeMetrics; behaviors: ProductBehavior[]; heatmap: HeatmapData[]; orders: Order[] }
 ): Promise<{ fileName: string; size: number; blob: Blob }> {
   const timeStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const ext = config.format === 'xlsx' ? 'xlsx' : 'csv';

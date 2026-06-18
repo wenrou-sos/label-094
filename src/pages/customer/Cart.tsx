@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import CustomerNavBar from '@/components/shared/CustomerNavBar';
 import CartItem from '@/components/customer/CartItem';
 import ProductDetailModal from '@/components/customer/ProductDetailModal';
@@ -10,12 +10,22 @@ export default function CustomerCart() {
   const cart = useAppStore(s => s.cart);
   const clear = useAppStore(s => s.clearCart);
   const createOrder = useAppStore(s => s.createOrder);
+  const navigate = useNavigate();
 
   const items = cart?.items ?? [];
   const total = items.reduce((s, it) => s + it.product.price * it.quantity, 0);
   const discount = total >= 500 ? total * 0.05 : 0;
   const finalAmt = total - discount;
   const count = items.reduce((s, it) => s + it.quantity, 0);
+
+  const handleCheckout = () => {
+    try {
+      createOrder();
+      navigate('/checkout');
+    } catch (e) {
+      console.error('创建订单失败:', e);
+    }
+  };
 
   return (
     <div className="min-h-screen gradient-customer-bg">
@@ -106,7 +116,7 @@ export default function CustomerCart() {
               </div>
 
               <button
-                onClick={createOrder}
+                onClick={handleCheckout}
                 disabled={items.length === 0}
                 className="btn-customer w-full py-3.5 text-sm font-semibold flex items-center justify-center gap-2"
               >

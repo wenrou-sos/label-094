@@ -6,7 +6,7 @@ import { formatDateTime, formatFileSize } from '@/utils/formatters';
 import type { ExportType, ExportFormat } from '@/types';
 
 export default function Export() {
-  const { realtimeMetrics, productBehaviors, heatmapData, exportData, exportRecords } = useAppStore();
+  const { realtimeMetrics, productBehaviors, heatmapData, exportData, exportRecords, orders } = useAppStore();
   const [selectedType, setSelectedType] = useState<ExportType>('metrics');
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('xlsx');
   const [isExporting, setIsExporting] = useState(false);
@@ -16,7 +16,7 @@ export default function Export() {
     { value: 'metrics', label: '综合运营指标', desc: '实时客流、销售、转化率等核心指标汇总', icon: BarChart3 },
     { value: 'behavior', label: '商品行为分析', desc: '各商品拿取次数、购买次数、转化率明细', icon: Activity },
     { value: 'heatmap', label: '24小时热力图数据', desc: '分时段客流量与销售额的时粒度数据', icon: TrendingUp },
-    { value: 'orders', label: '订单记录明细', desc: '近50笔订单完整记录，含商品金额与支付方式', icon: ShoppingCart }
+    { value: 'orders', label: '订单记录明细', desc: '实际成交订单完整记录，含商品金额与支付方式', icon: ShoppingCart }
   ];
 
   const handleExport = async () => {
@@ -36,7 +36,7 @@ export default function Export() {
   const previewStats = {
     behavior: productBehaviors.length,
     heatmap: `${heatmapData.length}天 × 24时 = ${heatmapData.length * 24}条`,
-    orders: 50
+    orders: `${orders.length}单 / ${orders.reduce((s, o) => s + o.items.length, 0)}条明细`
   };
 
   return (
@@ -219,7 +219,7 @@ export default function Export() {
 
           <div className="glass-admin rounded-2xl p-6">
             <h3 className="text-base font-semibold text-sky-100 mb-4">当前数据集摘要</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/40">
                 <div className="text-xs text-slate-400 mb-1">统计商品数</div>
                 <div className="text-2xl font-semibold admin-font-mono text-sky-300">{productBehaviors.length}</div>
@@ -231,9 +231,13 @@ export default function Export() {
                 </div>
               </div>
               <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/40">
-                <div className="text-xs text-slate-400 mb-1">累计购买次数</div>
-                <div className="text-2xl font-semibold admin-font-mono text-emerald-300">
-                  {productBehaviors.reduce((s, b) => s + b.purchaseCount, 0)}
+                <div className="text-xs text-slate-400 mb-1">累计成交订单</div>
+                <div className="text-2xl font-semibold admin-font-mono text-emerald-300">{orders.length}</div>
+              </div>
+              <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/40">
+                <div className="text-xs text-slate-400 mb-1">订单总销售额</div>
+                <div className="text-2xl font-semibold admin-font-mono text-indigo-300">
+                  ¥{orders.reduce((s, o) => s + o.finalAmount, 0).toLocaleString()}
                 </div>
               </div>
               <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/40">

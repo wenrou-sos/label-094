@@ -120,6 +120,7 @@ export interface AppState {
   shelfMonitors: ShelfMonitor[];
   heatmapData: HeatmapData[];
   exportRecords: ExportRecord[];
+  orders: Order[];
 
   bindPhone: (phone: string) => void;
   showProductDetail: (product: Product) => void;
