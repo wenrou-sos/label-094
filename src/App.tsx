@@ -5,6 +5,7 @@ import { useAppStore } from '@/store/useAppStore';
 import CustomerHome from '@/pages/customer/Home';
 import Cart from '@/pages/customer/Cart';
 import Checkout from '@/pages/customer/Checkout';
+import Receipt from '@/pages/customer/Receipt';
 
 import Dashboard from '@/pages/admin/Dashboard';
 import Analytics from '@/pages/admin/Analytics';
@@ -26,6 +27,7 @@ function AppRoutes() {
       <Route path="/home" element={<Navigate to="/" replace />} />
       <Route path="/cart" element={<Cart />} />
       <Route path="/checkout" element={<Checkout />} />
+      <Route path="/receipt" element={<Receipt />} />
 
       <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
       <Route path="/admin/dashboard" element={<Dashboard />} />

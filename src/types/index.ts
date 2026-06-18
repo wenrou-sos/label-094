@@ -121,6 +121,7 @@ export interface AppState {
   heatmapData: HeatmapData[];
   exportRecords: ExportRecord[];
   orders: Order[];
+  lastPaidOrder: Order | null;
 
   bindPhone: (phone: string) => void;
   showProductDetail: (product: Product) => void;
@@ -131,6 +132,7 @@ export interface AppState {
   clearCart: () => void;
   createOrder: () => Order;
   simulatePayment: (orderId: string, method: 'wechat' | 'alipay') => Promise<boolean>;
+  clearReceipt: () => void;
 
   refreshMetrics: () => void;
   refreshHeatmap: (dimension: HeatmapDimension) => void;

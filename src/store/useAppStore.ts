@@ -31,6 +31,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   heatmapData: initialHeatmap,
   exportRecords: [],
   orders: [],
+  lastPaidOrder: null,
 
   bindPhone: (phone) => set(state => ({
     isPhoneBound: true,
@@ -110,6 +111,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     cart: { ...state.cart, items: [], updatedAt: Date.now() }
   } : state),
 
+  clearReceipt: () => set({ lastPaidOrder: null, currentOrder: null }),
+
   createOrder: () => {
     const state = get();
     if (!state.cart || state.cart.items.length === 0) {
@@ -167,6 +170,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           currentOrder: paidOrder,
           productBehaviors: behaviors,
           orders: paidOrder ? [paidOrder, ...state.orders] : state.orders,
+          lastPaidOrder: paidOrder ?? state.lastPaidOrder,
           realtimeMetrics: {
             ...state.realtimeMetrics,
             todayCustomers: state.realtimeMetrics.todayCustomers + 1,
