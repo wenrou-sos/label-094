@@ -9,6 +9,7 @@ import Receipt from '@/pages/customer/Receipt';
 
 import Dashboard from '@/pages/admin/Dashboard';
 import Analytics from '@/pages/admin/Analytics';
+import Association from '@/pages/admin/Association';
 import Heatmap from '@/pages/admin/Heatmap';
 import Strategy from '@/pages/admin/Strategy';
 import Export from '@/pages/admin/Export';
@@ -33,6 +34,7 @@ function AppRoutes() {
       <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
       <Route path="/admin/dashboard" element={<Dashboard />} />
       <Route path="/admin/analytics" element={<Analytics />} />
+      <Route path="/admin/association" element={<Association />} />
       <Route path="/admin/heatmap" element={<Heatmap />} />
       <Route path="/admin/strategy" element={<Strategy />} />
       <Route path="/admin/export" element={<Export />} />

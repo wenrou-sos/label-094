@@ -124,6 +124,8 @@ export interface AppState {
   orders: Order[];
   lastPaidOrder: Order | null;
   strategies: Strategy[];
+  associationRules: AssociationRule[];
+  simulatedOrders: Order[];
 
   bindPhone: (phone: string) => void;
   showProductDetail: (product: Product) => void;
@@ -139,6 +141,7 @@ export interface AppState {
   refreshMetrics: () => void;
   refreshHeatmap: (dimension: HeatmapDimension) => void;
   exportData: (config: ExportConfig) => Promise<ExportRecord>;
+  regenerateAssociationRules: (orderCount?: number) => void;
 
   simulateProductPickup: () => void;
   startAutoSimulation: () => void;
@@ -152,6 +155,9 @@ export interface AppState {
   getActiveStrategies: () => AppliedStrategyResult;
   checkPurchaseLimit: (productId: string, currentCartQty: number) => { allowed: boolean; limit?: AppliedLimit };
   checkOrderLimit: () => { allowed: boolean; limit?: AppliedLimit; totalQty: number };
+
+  getProductRecommendations: (productId: string, limit?: number) => { product: Product; confidence: number; lift: number }[];
+  getCartPairingRecommendations: (cartProductIds: string[], limit?: number) => { product: Product; confidence: number; missingAmount: number }[];
 }
 
 export type StrategyType = 'filter' | 'discount' | 'limit';
@@ -219,4 +225,16 @@ export interface AppliedStrategyResult {
   priceOverrides: Record<string, AppliedDiscount>;
   limits: AppliedLimit[];
   activeStrategies: Strategy[];
+}
+
+export interface AssociationRule {
+  id: string;
+  antecedent: Product[];
+  antecedentIds: string[];
+  consequent: Product[];
+  consequentIds: string[];
+  support: number;
+  confidence: number;
+  lift: number;
+  supportCount: number;
 }

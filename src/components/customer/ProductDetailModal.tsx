@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   X, ShoppingCart, Eye, EyeOff, Waves, Zap, Volume2,
   ShieldCheck, Droplets, ChevronDown, ChevronUp, Plus, Clock,
-  BadgePercent, AlertCircle
+  BadgePercent, AlertCircle, Sparkles, Link2, ShoppingBag
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
-import { formatCurrency } from '@/utils/formatters';
+import { formatCurrency, formatPercent } from '@/utils/formatters';
 import { getActiveStrategies } from '@/utils/strategyUtils';
 import clsx from 'clsx';
 
@@ -27,17 +27,26 @@ export default function ProductDetailModal() {
   const cart = useAppStore(s => s.cart);
   const strategies = useAppStore(s => s.strategies);
   const checkPurchaseLimit = useAppStore(s => s.checkPurchaseLimit);
+  const getProductRecommendations = useAppStore(s => s.getProductRecommendations);
+  const simulatedOrders = useAppStore(s => s.simulatedOrders);
 
   const [showClearImg, setShowClearImg] = useState(false);
   const [expandGuide, setExpandGuide] = useState(true);
   const [added, setAdded] = useState(false);
+  const [addedRelated, setAddedRelated] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (open) {
       setShowClearImg(false);
       setAdded(false);
+      setAddedRelated({});
     }
   }, [open, product?.id]);
+
+  const relatedProducts = useMemo(() => {
+    if (!product) return [];
+    return getProductRecommendations(product.id, 3);
+  }, [product, getProductRecommendations]);
 
   if (!open || !product) return null;
 
@@ -222,7 +231,80 @@ export default function ProductDetailModal() {
             </div>
           </div>
 
-          <div className="px-7 py-5 border-t border-fuchsia-500/15 space-y-3">
+          <div className="px-7 py-5 border-t border-fuchsia-500/15 space-y-4">
+            {relatedProducts.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-xs text-fuchsia-200/80">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="font-semibold">经常一起买</span>
+                  <span className="text-fuchsia-400/50">· 基于 {simulatedOrders.filter(o => o.status === 'paid').length} 笔订单分析</span>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                  {relatedProducts.map(rel => {
+                    const isAdded = addedRelated[rel.product.id];
+                    const relActive = getActiveStrategies(strategies, new Date().getHours());
+                    const relDiscount = relActive.priceOverrides[rel.product.id];
+                    const relFinalPrice = relDiscount ? relDiscount.finalPrice : rel.product.price;
+                    return (
+                      <div
+                        key={rel.product.id}
+                        className="flex items-center gap-3 p-3 rounded-2xl bg-fuchsia-500/5 border border-fuchsia-500/15 hover:border-fuchsia-400/30 transition-all group"
+                      >
+                        <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-slate-900/50">
+                          <img
+                            src={rel.product.image}
+                            alt=""
+                            className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity"
+                            loading="lazy"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-fuchsia-50 truncate">{rel.product.name}</div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-lg font-bold bg-gradient-to-br from-fuchsia-200 to-pink-300 bg-clip-text text-transparent customer-font-display">
+                              {formatCurrency(relFinalPrice)}
+                            </span>
+                            <span className="text-[10px] text-fuchsia-300/50 flex items-center gap-0.5">
+                              <Link2 className="w-2.5 h-2.5" />
+                              {formatPercent(rel.confidence, 0)} 人一起买
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            addToCart(rel.product.id, 1);
+                            setAddedRelated(prev => ({ ...prev, [rel.product.id]: true }));
+                            setTimeout(() => {
+                              setAddedRelated(prev => ({ ...prev, [rel.product.id]: false }));
+                            }, 1500);
+                          }}
+                          disabled={isAdded}
+                          className={clsx(
+                            'shrink-0 flex items-center gap-1 px-3 py-2 rounded-full text-xs font-semibold transition-all',
+                            isAdded
+                              ? 'bg-emerald-500 text-white'
+                              : 'bg-fuchsia-500/15 text-fuchsia-200 border border-fuchsia-500/30 hover:bg-fuchsia-500/25'
+                          )}
+                        >
+                          {isAdded ? (
+                            <>
+                              <Plus className="w-3.5 h-3.5" />
+                              已加购
+                            </>
+                          ) : (
+                            <>
+                              <ShoppingBag className="w-3.5 h-3.5" />
+                              一起加购
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {limit.limit && (
               <div className={`text-xs px-3 py-2 rounded-xl flex items-center gap-2 ${
                 limit.allowed

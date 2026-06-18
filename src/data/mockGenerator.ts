@@ -1,6 +1,6 @@
-import type { ProductBehavior, ShelfMonitor, RealtimeMetrics, HeatmapData, HourlyData, Product } from '@/types';
+import type { ProductBehavior, ShelfMonitor, RealtimeMetrics, HeatmapData, HourlyData, Product, Order, CartItem } from '@/types';
 import { products, shelfInfo } from './products';
-import { randomInt, randomFloat, clamp, normalRandom } from '@/utils/randomUtils';
+import { randomInt, randomFloat, clamp, normalRandom, randomPick, generateOrderId, generateSessionId } from '@/utils/randomUtils';
 import { formatDate, getWeekday } from '@/utils/formatters';
 
 export function generateProductBehaviors(): ProductBehavior[] {
@@ -154,4 +154,110 @@ export function addDeltaToBehaviors(prev: ProductBehavior[]): ProductBehavior[] 
     }
     return b;
   });
+}
+
+const ASSOCIATION_PATTERNS: string[][] = [
+  ['p_001', 'p_007'],
+  ['p_002', 'p_007'],
+  ['p_009', 'p_007'],
+  ['p_004', 'p_007'],
+  ['p_005', 'p_006'],
+  ['p_002', 'p_006'],
+  ['p_008', 'p_007'],
+  ['p_004', 'p_010'],
+  ['p_010', 'p_011'],
+  ['p_001', 'p_012'],
+  ['p_003', 'p_007'],
+  ['p_009', 'p_012'],
+  ['p_005', 'p_007'],
+  ['p_006', 'p_007'],
+  ['p_008', 'p_002'],
+];
+
+function getProductById(id: string): Product | undefined {
+  return products.find(p => p.id === id);
+}
+
+function buildCartItems(productIds: string[]): CartItem[] {
+  return productIds
+    .map(id => {
+      const p = getProductById(id);
+      if (!p) return null;
+      return {
+        productId: id,
+        product: p,
+        quantity: randomInt(1, 2),
+        addedAt: Date.now() - randomInt(0, 3600000)
+      } as CartItem;
+    })
+    .filter((it): it is CartItem => it !== null);
+}
+
+export function generateMockOrders(count = 800): Order[] {
+  const orders: Order[] = [];
+  const now = Date.now();
+
+  for (let i = 0; i < count; i++) {
+    const itemCount = randomInt(1, 4);
+    let selectedIds: string[] = [];
+
+    if (itemCount >= 2 && Math.random() < 0.55) {
+      const pattern = randomPick(ASSOCIATION_PATTERNS);
+      selectedIds = [...pattern];
+      if (itemCount > pattern.length) {
+        const remaining = itemCount - pattern.length;
+        for (let j = 0; j < remaining; j++) {
+          let attempts = 0;
+          while (attempts < 10) {
+            const p = pickRandomProduct();
+            if (!selectedIds.includes(p.id)) {
+              selectedIds.push(p.id);
+              break;
+            }
+            attempts++;
+          }
+        }
+      }
+    } else {
+      for (let j = 0; j < itemCount; j++) {
+        let attempts = 0;
+        while (attempts < 10) {
+          const p = pickRandomProduct();
+          if (!selectedIds.includes(p.id)) {
+            selectedIds.push(p.id);
+            break;
+          }
+          attempts++;
+        }
+      }
+    }
+
+    const items = buildCartItems(selectedIds);
+    if (items.length === 0) continue;
+
+    const originalTotal = items.reduce((s, it) => s + it.product.price * it.quantity, 0);
+    const strategyDiscount = originalTotal * (Math.random() < 0.4 ? randomFloat(0.05, 0.2) : 0);
+    const afterStrategy = originalTotal - strategyDiscount;
+    const thresholdDiscount = afterStrategy >= 500 ? afterStrategy * 0.05 : 0;
+    const finalAmount = originalTotal - strategyDiscount - thresholdDiscount;
+
+    const createdAt = now - randomInt(0, 30 * 24 * 3600 * 1000);
+
+    orders.push({
+      id: generateOrderId(),
+      sessionId: generateSessionId(),
+      items,
+      totalAmount: parseFloat(originalTotal.toFixed(2)),
+      discountAmount: parseFloat(thresholdDiscount.toFixed(2)),
+      strategyDiscount: parseFloat(strategyDiscount.toFixed(2)),
+      finalAmount: parseFloat(finalAmount.toFixed(2)),
+      status: Math.random() < 0.92 ? 'paid' : (Math.random() < 0.5 ? 'pending' : 'cancelled'),
+      paymentMethod: Math.random() < 0.6 ? 'wechat' : 'alipay',
+      createdAt,
+      paidAt: Math.random() < 0.92 ? createdAt + randomInt(30000, 180000) : undefined
+    });
+  }
+
+  orders.sort((a, b) => b.createdAt - a.createdAt);
+  return orders;
 }

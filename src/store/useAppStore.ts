@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type { AppState, HeatmapDimension, Order, ExportConfig, ExportRecord, Strategy, AppliedStrategyResult, AppliedLimit } from '@/types';
-import { generateProductBehaviors, generateShelfMonitors, generateRealtimeMetrics, generateHeatmapData, pickRandomProduct, addDeltaToMetrics, addDeltaToBehaviors } from '@/data/mockGenerator';
+import type { AppState, Order, ExportRecord, Strategy, AppliedStrategyResult, AssociationRule } from '@/types';
+import { generateProductBehaviors, generateShelfMonitors, generateRealtimeMetrics, generateHeatmapData, pickRandomProduct, addDeltaToMetrics, addDeltaToBehaviors, generateMockOrders } from '@/data/mockGenerator';
 import { generateSessionId, generateOrderId, randomId } from '@/utils/randomUtils';
 import { getProductById } from '@/data/products';
 import { executeExport } from '@/utils/exportUtils';
@@ -11,6 +11,7 @@ import {
   getProductLimitForStrategies,
   getOrderLimitForStrategies
 } from '@/utils/strategyUtils';
+import { generateAssociationRules, getTopRelatedProducts, getCartRecommendations } from '@/utils/aprioriUtils';
 
 let autoSimInterval: ReturnType<typeof setInterval> | null = null;
 let metricsInterval: ReturnType<typeof setInterval> | null = null;
@@ -20,6 +21,8 @@ const initialMetrics = generateRealtimeMetrics();
 const initialShelves = generateShelfMonitors();
 const initialHeatmap = generateHeatmapData('week');
 const initialStrategies = generateDefaultStrategies();
+const initialSimulatedOrders = generateMockOrders(800);
+const initialAssociationRules = generateAssociationRules(initialSimulatedOrders);
 
 export const useAppStore = create<AppState>((set, get) => ({
   cart: {
@@ -41,6 +44,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   orders: [],
   lastPaidOrder: null,
   strategies: initialStrategies,
+  associationRules: initialAssociationRules,
+  simulatedOrders: initialSimulatedOrders,
 
   bindPhone: (phone) => set(state => ({
     isPhoneBound: true,
@@ -341,5 +346,19 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { allowed: false, limit, totalQty };
     }
     return { allowed: true, limit, totalQty };
+  },
+
+  regenerateAssociationRules: (orderCount = 800) => {
+    const newOrders = generateMockOrders(orderCount);
+    const newRules = generateAssociationRules(newOrders);
+    set({ simulatedOrders: newOrders, associationRules: newRules });
+  },
+
+  getProductRecommendations: (productId, limit = 3) => {
+    return getTopRelatedProducts(productId, get().associationRules, limit);
+  },
+
+  getCartPairingRecommendations: (cartProductIds, limit = 2) => {
+    return getCartRecommendations(cartProductIds, get().associationRules, limit);
   }
 }));
