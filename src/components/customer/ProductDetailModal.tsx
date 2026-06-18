@@ -49,6 +49,7 @@ export default function ProductDetailModal() {
   const finalPrice = discount ? discount.finalPrice : product.price;
   const cartItem = cart?.items.find(it => it.productId === product.id);
   const cartQty = cartItem?.quantity || 0;
+  const totalCartQty = cart?.items.reduce((s, it) => s + it.quantity, 0) || 0;
   const limit = checkPurchaseLimit(product.id, cartQty);
 
   const handleAdd = () => {
@@ -231,8 +232,12 @@ export default function ProductDetailModal() {
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 <span>
                   {limit.allowed
-                    ? `「${limit.limit.strategyName}」每人限购 ${limit.limit.maxPerPerson} 件，已选购 ${cartQty} 件`
-                    : `已达限购上限 ${limit.limit.maxPerPerson} 件，无法继续添加`
+                    ? limit.limit.scope === 'per_order'
+                      ? `「${limit.limit.strategyName}」每单限购 ${limit.limit.maxPerPerson} 件，当前购物车共 ${totalCartQty} 件`
+                      : `「${limit.limit.strategyName}」每人限购 ${limit.limit.maxPerPerson} 件，已选购 ${cartQty} 件`
+                    : limit.limit.scope === 'per_order'
+                      ? `已达每单限购上限 ${limit.limit.maxPerPerson} 件，无法继续添加`
+                      : `已达限购上限 ${limit.limit.maxPerPerson} 件，无法继续添加`
                   }
                 </span>
               </div>

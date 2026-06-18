@@ -4,9 +4,10 @@ import CustomerNavBar from '@/components/shared/CustomerNavBar';
 import PaymentQRCode from '@/components/customer/PaymentQRCode';
 import { useAppStore } from '@/store/useAppStore';
 import { formatCurrency, formatDateTime } from '@/utils/formatters';
+import { getActiveStrategies } from '@/utils/strategyUtils';
 import {
   CreditCard, ArrowLeft, CheckCircle2, Home, ShoppingBag,
-  Clock, DoorOpen, ShieldCheck
+  Clock, DoorOpen, ShieldCheck, BadgePercent, Tag, Sparkles
 } from 'lucide-react';
 
 export default function CustomerCheckout() {
@@ -15,6 +16,7 @@ export default function CustomerCheckout() {
   const createOrder = useAppStore(s => s.createOrder);
   const currentOrder = useAppStore(s => s.currentOrder);
   const clearCart = useAppStore(s => s.clearCart);
+  const strategies = useAppStore(s => s.strategies);
 
   const [order, setOrder] = useState(currentOrder);
 
@@ -36,6 +38,13 @@ export default function CustomerCheckout() {
   const paid = order?.status === 'paid';
   const items = order?.items ?? [];
   const qty = items.reduce((s, it) => s + it.quantity, 0);
+  const active = getActiveStrategies(strategies, new Date().getHours());
+  const priceOverrides = active.priceOverrides;
+
+  const getFinalPrice = (price: number, productId: string) => {
+    const override = priceOverrides[productId];
+    return override ? override.finalPrice : price;
+  };
 
   useEffect(() => {
     if (paid) {
@@ -95,26 +104,41 @@ export default function CustomerCheckout() {
                 <div className="h-px bg-fuchsia-500/15" />
 
                 <div className="space-y-3 max-h-[440px] overflow-y-auto scrollbar-thin pr-2">
-                  {items.map(it => (
-                    <div key={it.productId} className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-slate-900/60">
-                        <img
-                          src={it.product.image}
-                          alt=""
-                          className="w-full h-full object-cover privacy-blur"
-                          loading="lazy"
-                        />
+                  {items.map(it => {
+                    const unitPrice = getFinalPrice(it.product.price, it.productId);
+                    const lineTotal = unitPrice * it.quantity;
+                    const override = priceOverrides[it.productId];
+                    return (
+                      <div key={it.productId} className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-slate-900/60">
+                          <img
+                            src={it.product.image}
+                            alt=""
+                            className="w-full h-full object-cover privacy-blur"
+                            loading="lazy"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-fuchsia-50 truncate">{it.product.name}</div>
+                          <div className="text-[11px] text-fuchsia-300/50 font-mono">{it.product.sku}</div>
+                          {override && (
+                            <div className="text-[10px] text-emerald-400 mt-0.5">
+                              已应用「{override.strategyName}」{((1 - override.percent) * 100).toFixed(0)}% OFF
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-sm text-fuchsia-100 admin-font-mono">×{it.quantity}</div>
+                          <div className="text-xs text-fuchsia-300/60">{formatCurrency(lineTotal)}</div>
+                          {override && override.originalPrice !== override.finalPrice && (
+                            <div className="text-[10px] text-fuchsia-400/40 line-through">
+                              {formatCurrency(it.product.price * it.quantity)}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm text-fuchsia-50 truncate">{it.product.name}</div>
-                        <div className="text-[11px] text-fuchsia-300/50 font-mono">{it.product.sku}</div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-sm text-fuchsia-100 admin-font-mono">×{it.quantity}</div>
-                        <div className="text-xs text-fuchsia-300/60">{formatCurrency(it.product.price * it.quantity)}</div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <div className="h-px bg-fuchsia-500/15" />
@@ -124,9 +148,19 @@ export default function CustomerCheckout() {
                     <span>商品总价</span>
                     <span>{formatCurrency(order.totalAmount)}</span>
                   </div>
+                  {order.strategyDiscount > 0 && (
+                    <div className="flex items-center justify-between text-emerald-300">
+                      <span className="inline-flex items-center gap-1">
+                        <BadgePercent className="w-3.5 h-3.5" /> 时段自动折扣
+                      </span>
+                      <span>-{formatCurrency(order.strategyDiscount)}</span>
+                    </div>
+                  )}
                   {order.discountAmount > 0 && (
                     <div className="flex items-center justify-between text-emerald-300">
-                      <span>满减优惠</span>
+                      <span className="inline-flex items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5" /> 满¥500立减95折
+                      </span>
                       <span>-{formatCurrency(order.discountAmount)}</span>
                     </div>
                   )}

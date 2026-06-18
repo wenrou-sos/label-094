@@ -42,6 +42,7 @@ export interface Order {
   items: CartItem[];
   totalAmount: number;
   discountAmount: number;
+  strategyDiscount: number;
   finalAmount: number;
   status: 'pending' | 'paid' | 'failed' | 'cancelled';
   paymentMethod?: 'wechat' | 'alipay';
@@ -150,6 +151,7 @@ export interface AppState {
   toggleStrategy: (id: string) => void;
   getActiveStrategies: () => AppliedStrategyResult;
   checkPurchaseLimit: (productId: string, currentCartQty: number) => { allowed: boolean; limit?: AppliedLimit };
+  checkOrderLimit: () => { allowed: boolean; limit?: AppliedLimit; totalQty: number };
 }
 
 export type StrategyType = 'filter' | 'discount' | 'limit';
@@ -176,6 +178,7 @@ export interface StrategyConfig {
   };
   limit?: {
     maxPerPerson: number;
+    scope: 'per_order' | 'per_product';
     applyTo?: 'all' | 'shelf' | 'tags';
     shelfIds?: string[];
     tags?: string[];
@@ -208,6 +211,7 @@ export interface AppliedLimit {
   strategyId: string;
   strategyName: string;
   maxPerPerson: number;
+  scope: 'per_order' | 'per_product';
 }
 
 export interface AppliedStrategyResult {

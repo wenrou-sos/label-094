@@ -8,7 +8,8 @@ import {
   generateDefaultStrategies,
   calculateActiveStrategies,
   getCurrentHour,
-  getProductLimitForStrategies
+  getProductLimitForStrategies,
+  getOrderLimitForStrategies
 } from '@/utils/strategyUtils';
 
 let autoSimInterval: ReturnType<typeof setInterval> | null = null;
@@ -126,16 +127,27 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!state.cart || state.cart.items.length === 0) {
       throw new Error('购物车为空');
     }
-    const totalAmount = state.cart.items.reduce((sum, it) => sum + it.product.price * it.quantity, 0);
-    const discountAmount = totalAmount >= 500 ? totalAmount * 0.05 : 0;
-    const finalAmount = totalAmount - discountAmount;
+    const active = state.getActiveStrategies();
+    const priceOverrides = active.priceOverrides;
+
+    const getFinalPrice = (price: number, productId: string) => {
+      const override = priceOverrides[productId];
+      return override ? override.finalPrice : price;
+    };
+
+    const originalTotal = state.cart.items.reduce((s, it) => s + it.product.price * it.quantity, 0);
+    const strategyTotal = state.cart.items.reduce((s, it) => s + getFinalPrice(it.product.price, it.productId) * it.quantity, 0);
+    const strategyDiscount = originalTotal - strategyTotal;
+    const thresholdDiscount = strategyTotal >= 500 ? strategyTotal * 0.05 : 0;
+    const finalAmount = originalTotal - strategyDiscount - thresholdDiscount;
 
     const order: Order = {
       id: generateOrderId(),
       sessionId: state.cart.sessionId,
       items: state.cart.items,
-      totalAmount: parseFloat(totalAmount.toFixed(2)),
-      discountAmount: parseFloat(discountAmount.toFixed(2)),
+      totalAmount: parseFloat(originalTotal.toFixed(2)),
+      discountAmount: parseFloat(thresholdDiscount.toFixed(2)),
+      strategyDiscount: parseFloat(strategyDiscount.toFixed(2)),
       finalAmount: parseFloat(finalAmount.toFixed(2)),
       status: 'pending',
       createdAt: Date.now()
@@ -302,11 +314,32 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   checkPurchaseLimit: (productId, currentQty) => {
     const active = get().getActiveStrategies();
+    const cart = get().cart;
+    const totalQty = cart?.items.reduce((s, it) => s + it.quantity, 0) || 0;
+
+    const orderLimit = getOrderLimitForStrategies(active);
+    if (orderLimit && totalQty + 1 > orderLimit.maxPerPerson) {
+      return { allowed: false, limit: orderLimit };
+    }
+
     const limit = getProductLimitForStrategies(productId, active);
     if (!limit) return { allowed: true };
     if (currentQty >= limit.maxPerPerson) {
       return { allowed: false, limit };
     }
     return { allowed: true, limit };
+  },
+
+  checkOrderLimit: () => {
+    const active = get().getActiveStrategies();
+    const cart = get().cart;
+    const totalQty = cart?.items.reduce((s, it) => s + it.quantity, 0) || 0;
+
+    const limit = getOrderLimitForStrategies(active);
+    if (!limit) return { allowed: true, totalQty };
+    if (totalQty > limit.maxPerPerson) {
+      return { allowed: false, limit, totalQty };
+    }
+    return { allowed: true, limit, totalQty };
   }
 }));

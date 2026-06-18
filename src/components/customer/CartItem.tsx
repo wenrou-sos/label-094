@@ -60,7 +60,9 @@ export default function CartItem({ item }: Props) {
         {!limit.allowed && limit.limit && (
           <div className="text-[10px] text-red-400 flex items-center gap-1">
             <AlertCircle className="w-3 h-3" />
-            已达限购上限 {limit.limit.maxPerPerson} 件
+            {limit.limit.scope === 'per_order'
+              ? `已达每单限购上限 ${limit.limit.maxPerPerson} 件`
+              : `已达限购上限 ${limit.limit.maxPerPerson} 件`}
           </div>
         )}
 

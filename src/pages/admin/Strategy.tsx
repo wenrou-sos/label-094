@@ -72,13 +72,17 @@ export default function AdminStrategy() {
   const openNew = (type?: StrategyType) => {
     const base = { ...defaultForm, type: type ?? defaultForm.type };
     if (type === 'filter') base.config = { filter: { mode: 'beginner_only' } };
-    if (type === 'limit') base.config = { limit: { maxPerPerson: 3, applyTo: 'all' } };
+    if (type === 'limit') base.config = { limit: { maxPerPerson: 3, scope: 'per_order', applyTo: 'all' } };
     setForm(base);
     setEditingId(null);
     setShowForm(true);
   };
 
   const openEdit = (s: Strategy) => {
+    const cfg = JSON.parse(JSON.stringify(s.config));
+    if (cfg.limit && !cfg.limit.scope) {
+      cfg.limit.scope = 'per_order';
+    }
     setForm({
       name: s.name,
       type: s.type,
@@ -87,7 +91,7 @@ export default function AdminStrategy() {
       enabled: s.enabled,
       timeRange: { ...s.timeRange },
       applyToShelves: s.applyToShelves,
-      config: JSON.parse(JSON.stringify(s.config))
+      config: cfg
     });
     setEditingId(s.id);
     setShowForm(true);
@@ -114,7 +118,7 @@ export default function AdminStrategy() {
     const newForm = { ...form, type };
     if (type === 'filter') newForm.config = { filter: { mode: 'beginner_only' } };
     if (type === 'discount') newForm.config = { discount: { percent: 0.9, applyTo: 'all' } };
-    if (type === 'limit') newForm.config = { limit: { maxPerPerson: 3, applyTo: 'all' } };
+    if (type === 'limit') newForm.config = { limit: { maxPerPerson: 3, scope: 'per_order', applyTo: 'all' } };
     setForm(newForm);
   };
 
@@ -572,7 +576,32 @@ export default function AdminStrategy() {
                   {form.type === 'limit' && form.config.limit && (
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-xs font-medium text-slate-300 mb-1.5">每人每单最大购买数量</label>
+                        <label className="block text-xs font-medium text-slate-300 mb-1.5">限购范围</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => setForm(f => ({ ...f, config: { limit: { ...f.config.limit, scope: 'per_order' } } }))}
+                            className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                              form.config.limit.scope === 'per_order'
+                                ? 'bg-amber-500/20 text-amber-200 border border-amber-500/40'
+                                : 'bg-slate-800/60 text-slate-400 border border-slate-700 hover:border-slate-600'
+                            }`}
+                          >
+                            整单限购（每单最多N件）
+                          </button>
+                          <button
+                            onClick={() => setForm(f => ({ ...f, config: { limit: { ...f.config.limit, scope: 'per_product' } } }))}
+                            className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                              form.config.limit.scope === 'per_product'
+                                ? 'bg-amber-500/20 text-amber-200 border border-amber-500/40'
+                                : 'bg-slate-800/60 text-slate-400 border border-slate-700 hover:border-slate-600'
+                            }`}
+                          >
+                            单商品限购（每件商品最多N件）
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1.5">最大购买数量</label>
                         <div className="flex items-center gap-3">
                           <input
                             type="range"

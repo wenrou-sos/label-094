@@ -67,7 +67,10 @@ export default function CustomerHome() {
     const qty = cartItem ? cartItem.quantity : 0;
     const check = checkPurchaseLimit(productId, qty);
     if (!check.allowed && check.limit) {
-      setToastMsg(`限购提示：「${products.find(p => p.id === productId)?.name}」每人限购 ${check.limit.maxPerPerson} 件`);
+      const msg = check.limit.scope === 'per_order'
+        ? `限购提示：「${check.limit.strategyName}」每单限购 ${check.limit.maxPerPerson} 件，已达上限`
+        : `限购提示：「${products.find(p => p.id === productId)?.name}」每人限购 ${check.limit.maxPerPerson} 件`;
+      setToastMsg(msg);
       setTimeout(() => setToastMsg(null), 3000);
       return;
     }
@@ -347,10 +350,10 @@ export default function CustomerHome() {
                                 </div>
 
                                 <div className="flex flex-col items-end gap-1">
-                                  {limit?.limit && cartQty >= limit.limit.maxPerPerson ? (
+                                  {limit?.limit && !limit.allowed ? (
                                     <div className="text-[9px] text-amber-400 flex items-center gap-0.5">
                                       <AlertCircle className="w-2.5 h-2.5" />
-                                      已达上限
+                                      {limit.limit.scope === 'per_order' ? '每单已达上限' : '已达上限'}
                                     </div>
                                   ) : (
                                     <>

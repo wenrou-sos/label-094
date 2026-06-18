@@ -13,6 +13,7 @@ export default function CustomerCart() {
   const createOrder = useAppStore(s => s.createOrder);
   const strategies = useAppStore(s => s.strategies);
   const checkPurchaseLimit = useAppStore(s => s.checkPurchaseLimit);
+  const checkOrderLimit = useAppStore(s => s.checkOrderLimit);
   const navigate = useNavigate();
 
   const items = cart?.items ?? [];
@@ -32,10 +33,12 @@ export default function CustomerCart() {
   const finalAmt = originalTotal - totalDiscount;
   const count = items.reduce((s, it) => s + it.quantity, 0);
 
-  const hasLimitViolation = items.some(it => {
+  const productLimitViolation = items.some(it => {
     const check = checkPurchaseLimit(it.productId, it.quantity - 1);
-    return !check.allowed;
+    return !check.allowed && check.limit?.scope === 'per_product';
   });
+  const orderLimitCheck = checkOrderLimit();
+  const hasLimitViolation = productLimitViolation || !orderLimitCheck.allowed;
 
   const handleCheckout = () => {
     try {
@@ -145,7 +148,11 @@ export default function CustomerCart() {
               {hasLimitViolation && (
                 <div className="text-xs px-3 py-2 rounded-xl bg-red-500/10 text-red-300 border border-red-500/30 flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>部分商品已超出限购数量，请调整后再结算</span>
+                  <span>
+                    {!orderLimitCheck.allowed && orderLimitCheck.limit
+                      ? `「${orderLimitCheck.limit.strategyName}」每单限购 ${orderLimitCheck.limit.maxPerPerson} 件，当前已有 ${orderLimitCheck.totalQty} 件`
+                      : '部分商品已超出限购数量，请调整后再结算'}
+                  </span>
                 </div>
               )}
 

@@ -50,7 +50,7 @@ export function calculateActiveStrategies(
         visibleProductIds = visibleProductIds.filter(pid => {
           const product = getProductById(pid);
           if (!product) return false;
-          if (!isProductInShelfScope(strategy, product)) return false;
+          if (!isProductInShelfScope(strategy, product)) return true;
 
           switch (filter.mode) {
             case 'tags':
@@ -126,7 +126,8 @@ export function calculateActiveStrategies(
         limits.push({
           strategyId: strategy.id,
           strategyName: strategy.name,
-          maxPerPerson: limit.maxPerPerson
+          maxPerPerson: limit.maxPerPerson,
+          scope: limit.scope || 'per_product'
         });
         break;
       }
@@ -151,6 +152,8 @@ export function getProductLimitForStrategies(
 
   let strictest: AppliedLimit | null = null;
   for (const limit of active.limits) {
+    if (limit.scope !== 'per_product') continue;
+
     const strategy = active.activeStrategies.find(s => s.id === limit.strategyId);
     if (!strategy || strategy.type !== 'limit') continue;
 
@@ -176,6 +179,21 @@ export function getProductLimitForStrategies(
       if (!strictest || limit.maxPerPerson < strictest.maxPerPerson) {
         strictest = limit;
       }
+    }
+  }
+  return strictest;
+}
+
+export function getOrderLimitForStrategies(
+  active: AppliedStrategyResult
+): AppliedLimit | null {
+  if (active.limits.length === 0) return null;
+
+  let strictest: AppliedLimit | null = null;
+  for (const limit of active.limits) {
+    if (limit.scope !== 'per_order') continue;
+    if (!strictest || limit.maxPerPerson < strictest.maxPerPerson) {
+      strictest = limit;
     }
   }
   return strictest;
@@ -219,7 +237,7 @@ export function generateDefaultStrategies(): Strategy[] {
       enabled: true,
       timeRange: { start: 18, end: 22 },
       applyToShelves: 'all',
-      config: { limit: { maxPerPerson: 3, applyTo: 'all' } },
+      config: { limit: { maxPerPerson: 3, scope: 'per_order', applyTo: 'all' } },
       createdAt: now,
       updatedAt: now
     }

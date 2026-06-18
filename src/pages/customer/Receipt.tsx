@@ -4,9 +4,10 @@ import { QRCodeSVG } from 'qrcode.react';
 import CustomerNavBar from '@/components/shared/CustomerNavBar';
 import { useAppStore } from '@/store/useAppStore';
 import { formatCurrency, formatDateTime } from '@/utils/formatters';
+import { getActiveStrategies } from '@/utils/strategyUtils';
 import {
   Receipt as ReceiptIcon, CheckCircle2, Home, Trash2,
-  Clock, QrCode, Share2, Eraser, DoorOpen, ShieldCheck, Sparkles
+  Clock, QrCode, Share2, Eraser, DoorOpen, ShieldCheck, Sparkles, BadgePercent
 } from 'lucide-react';
 
 export default function CustomerReceipt() {
@@ -22,6 +23,14 @@ export default function CustomerReceipt() {
   const order = lastPaidOrder;
   const items = order?.items ?? [];
   const qty = items.reduce((s, it) => s + it.quantity, 0);
+  const strategies = useAppStore(s => s.strategies);
+  const active = getActiveStrategies(strategies, new Date().getHours());
+  const priceOverrides = active.priceOverrides;
+
+  const getFinalPrice = (price: number, productId: string) => {
+    const override = priceOverrides[productId];
+    return override ? override.finalPrice : price;
+  };
 
   useEffect(() => {
     if (!order) {
@@ -90,14 +99,20 @@ export default function CustomerReceipt() {
     `支付: ${order.paymentMethod === 'wechat' ? '微信支付' : order.paymentMethod === 'alipay' ? '支付宝' : '-'}`,
     '------------------------------',
     '商品清单:',
-    ...items.map(it =>
-      `  ${it.product.name} x${it.quantity}`,
-    ),
-    ...items.map(it =>
-      `      ${formatCurrency(it.product.price)} × ${it.quantity} = ${formatCurrency(it.product.price * it.quantity)}`,
-    ),
+    ...items.flatMap(it => {
+      const unitPrice = getFinalPrice(it.product.price, it.productId);
+      const override = priceOverrides[it.productId];
+      const lines: string[] = [`  ${it.product.name} x${it.quantity}`];
+      if (override && override.originalPrice !== override.finalPrice) {
+        lines.push(`      原价 ${formatCurrency(it.product.price)} · 折扣后 ${formatCurrency(unitPrice)} [${override.strategyName}]`);
+      } else {
+        lines.push(`      ${formatCurrency(unitPrice)} × ${it.quantity} = ${formatCurrency(unitPrice * it.quantity)}`);
+      }
+      return lines;
+    }),
     '------------------------------',
     `商品总额: ${formatCurrency(order.totalAmount)}`,
+    order.strategyDiscount > 0 ? `时段自动折扣: -${formatCurrency(order.strategyDiscount)}` : '',
     order.discountAmount > 0 ? `满减优惠: -${formatCurrency(order.discountAmount)}` : '',
     `实付金额: ${formatCurrency(order.finalAmount)}`,
     '==============================',
@@ -198,19 +213,32 @@ export default function CustomerReceipt() {
                 <span className="text-[11px] font-semibold text-slate-600 tracking-wide">商品清单</span>
                 <span className="text-[10px] text-slate-400">共 {qty} 件</span>
               </div>
-              {items.map(it => (
-                <div key={it.productId} className="flex items-start gap-3 py-1.5 border-b border-slate-100 last:border-0">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs text-slate-800 leading-snug line-clamp-2">{it.product.name}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5 font-mono">
-                      {formatCurrency(it.product.price)} × {it.quantity}
+              {items.map(it => {
+                const unitPrice = getFinalPrice(it.product.price, it.productId);
+                const lineTotal = unitPrice * it.quantity;
+                const override = priceOverrides[it.productId];
+                return (
+                  <div key={it.productId} className="flex items-start gap-3 py-1.5 border-b border-slate-100 last:border-0">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs text-slate-800 leading-snug line-clamp-2">{it.product.name}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5 font-mono">
+                        {formatCurrency(unitPrice)} × {it.quantity}
+                        {override && override.originalPrice !== override.finalPrice && (
+                          <span className="text-slate-400 ml-1 line-through">{formatCurrency(it.product.price)}</span>
+                        )}
+                      </div>
+                      {override && (
+                        <div className="text-[10px] text-emerald-600 mt-0.5">
+                          「{override.strategyName}」-${((1 - override.percent) * 100).toFixed(0)}% OFF
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-xs font-semibold text-slate-700 shrink-0 pt-0.5 font-mono">
+                      {formatCurrency(lineTotal)}
                     </div>
                   </div>
-                  <div className="text-xs font-semibold text-slate-700 shrink-0 pt-0.5 font-mono">
-                    {formatCurrency(it.product.price * it.quantity)}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="h-px border-t border-dashed border-slate-300" />
@@ -220,6 +248,14 @@ export default function CustomerReceipt() {
                 <span>商品总额</span>
                 <span className="font-mono">{formatCurrency(order.totalAmount)}</span>
               </div>
+              {order.strategyDiscount > 0 && (
+                <div className="flex justify-between text-emerald-600 font-medium">
+                  <span className="inline-flex items-center gap-1">
+                    <BadgePercent className="w-3 h-3" /> 时段自动折扣
+                  </span>
+                  <span className="font-mono">-{formatCurrency(order.strategyDiscount)}</span>
+                </div>
+              )}
               {order.discountAmount > 0 && (
                 <div className="flex justify-between text-emerald-600 font-medium">
                   <span className="inline-flex items-center gap-1">
