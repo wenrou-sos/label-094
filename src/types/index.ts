@@ -122,6 +122,7 @@ export interface AppState {
   exportRecords: ExportRecord[];
   orders: Order[];
   lastPaidOrder: Order | null;
+  strategies: Strategy[];
 
   bindPhone: (phone: string) => void;
   showProductDetail: (product: Product) => void;
@@ -141,4 +142,77 @@ export interface AppState {
   simulateProductPickup: () => void;
   startAutoSimulation: () => void;
   stopAutoSimulation: () => void;
+
+  addStrategy: (strategy: Omit<Strategy, 'id' | 'createdAt' | 'updatedAt'>) => Strategy;
+  updateStrategy: (id: string, updates: Partial<Strategy>) => void;
+  deleteStrategy: (id: string) => void;
+  reorderStrategies: (ids: string[]) => void;
+  toggleStrategy: (id: string) => void;
+  getActiveStrategies: () => AppliedStrategyResult;
+  checkPurchaseLimit: (productId: string, currentCartQty: number) => { allowed: boolean; limit?: AppliedLimit };
+}
+
+export type StrategyType = 'filter' | 'discount' | 'limit';
+export type StrategyFilterMode = 'tags' | 'price_range' | 'beginner_only';
+
+export interface TimeRange {
+  start: number;
+  end: number;
+}
+
+export interface StrategyConfig {
+  filter?: {
+    mode: StrategyFilterMode;
+    includeTags?: string[];
+    excludeTags?: string[];
+    priceMin?: number;
+    priceMax?: number;
+  };
+  discount?: {
+    percent: number;
+    applyTo?: 'all' | 'shelf' | 'tags';
+    shelfIds?: string[];
+    tags?: string[];
+  };
+  limit?: {
+    maxPerPerson: number;
+    applyTo?: 'all' | 'shelf' | 'tags';
+    shelfIds?: string[];
+    tags?: string[];
+  };
+}
+
+export interface Strategy {
+  id: string;
+  name: string;
+  type: StrategyType;
+  description: string;
+  priority: number;
+  enabled: boolean;
+  timeRange: TimeRange;
+  applyToShelves: 'all' | string[];
+  config: StrategyConfig;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface AppliedDiscount {
+  strategyId: string;
+  strategyName: string;
+  percent: number;
+  originalPrice: number;
+  finalPrice: number;
+}
+
+export interface AppliedLimit {
+  strategyId: string;
+  strategyName: string;
+  maxPerPerson: number;
+}
+
+export interface AppliedStrategyResult {
+  visibleProductIds: string[];
+  priceOverrides: Record<string, AppliedDiscount>;
+  limits: AppliedLimit[];
+  activeStrategies: Strategy[];
 }

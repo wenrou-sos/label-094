@@ -4,19 +4,38 @@ import CartItem from '@/components/customer/CartItem';
 import ProductDetailModal from '@/components/customer/ProductDetailModal';
 import { useAppStore } from '@/store/useAppStore';
 import { formatCurrency } from '@/utils/formatters';
-import { ShoppingCart, ArrowRight, Trash2, Tag, ArrowLeft, Sparkles } from 'lucide-react';
+import { getActiveStrategies } from '@/utils/strategyUtils';
+import { ShoppingCart, ArrowRight, Trash2, Tag, ArrowLeft, Sparkles, AlertCircle, BadgePercent } from 'lucide-react';
 
 export default function CustomerCart() {
   const cart = useAppStore(s => s.cart);
   const clear = useAppStore(s => s.clearCart);
   const createOrder = useAppStore(s => s.createOrder);
+  const strategies = useAppStore(s => s.strategies);
+  const checkPurchaseLimit = useAppStore(s => s.checkPurchaseLimit);
   const navigate = useNavigate();
 
   const items = cart?.items ?? [];
-  const total = items.reduce((s, it) => s + it.product.price * it.quantity, 0);
-  const discount = total >= 500 ? total * 0.05 : 0;
-  const finalAmt = total - discount;
+  const active = getActiveStrategies(strategies, new Date().getHours());
+  const priceOverrides = active.priceOverrides;
+
+  const getFinalPrice = (price: number, productId: string) => {
+    const override = priceOverrides[productId];
+    return override ? override.finalPrice : price;
+  };
+
+  const total = items.reduce((s, it) => s + getFinalPrice(it.product.price, it.productId) * it.quantity, 0);
+  const originalTotal = items.reduce((s, it) => s + it.product.price * it.quantity, 0);
+  const strategyDiscount = originalTotal - total;
+  const thresholdDiscount = total >= 500 ? total * 0.05 : 0;
+  const totalDiscount = strategyDiscount + thresholdDiscount;
+  const finalAmt = originalTotal - totalDiscount;
   const count = items.reduce((s, it) => s + it.quantity, 0);
+
+  const hasLimitViolation = items.some(it => {
+    const check = checkPurchaseLimit(it.productId, it.quantity - 1);
+    return !check.allowed;
+  });
 
   const handleCheckout = () => {
     try {
@@ -91,14 +110,22 @@ export default function CustomerCart() {
               <div className="space-y-2.5 text-sm">
                 <div className="flex items-center justify-between text-fuchsia-200/70">
                   <span>商品合计 ({count}件)</span>
-                  <span>{formatCurrency(total)}</span>
+                  <span>{formatCurrency(originalTotal)}</span>
                 </div>
-                {discount > 0 && (
+                {strategyDiscount > 0 && (
+                  <div className="flex items-center justify-between text-emerald-300">
+                    <span className="inline-flex items-center gap-1">
+                      <BadgePercent className="w-3.5 h-3.5" /> 时段自动折扣
+                    </span>
+                    <span>-{formatCurrency(strategyDiscount)}</span>
+                  </div>
+                )}
+                {thresholdDiscount > 0 && (
                   <div className="flex items-center justify-between text-emerald-300">
                     <span className="inline-flex items-center gap-1">
                       <Tag className="w-3.5 h-3.5" /> 满¥500立减95折
                     </span>
-                    <span>-{formatCurrency(discount)}</span>
+                    <span>-{formatCurrency(thresholdDiscount)}</span>
                   </div>
                 )}
                 <div className="h-px bg-fuchsia-500/15 my-3" />
@@ -108,17 +135,24 @@ export default function CustomerCart() {
                     {formatCurrency(finalAmt)}
                   </span>
                 </div>
-                {discount > 0 && (
+                {totalDiscount > 0 && (
                   <div className="text-[11px] text-emerald-300/80">
-                    本单已优惠 {formatCurrency(discount)}
+                    本单已优惠 {formatCurrency(totalDiscount)}
                   </div>
                 )}
               </div>
 
+              {hasLimitViolation && (
+                <div className="text-xs px-3 py-2 rounded-xl bg-red-500/10 text-red-300 border border-red-500/30 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>部分商品已超出限购数量，请调整后再结算</span>
+                </div>
+              )}
+
               <button
                 onClick={handleCheckout}
-                disabled={items.length === 0}
-                className="btn-customer w-full py-3.5 text-sm font-semibold flex items-center justify-center gap-2"
+                disabled={items.length === 0 || hasLimitViolation}
+                className="btn-customer w-full py-3.5 text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-40"
               >
                 立即结算
                 <ArrowRight className="w-4 h-4" />

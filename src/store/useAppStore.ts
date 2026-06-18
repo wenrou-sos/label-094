@@ -1,9 +1,15 @@
 import { create } from 'zustand';
-import type { AppState, HeatmapDimension, Order, ExportConfig, ExportRecord } from '@/types';
+import type { AppState, HeatmapDimension, Order, ExportConfig, ExportRecord, Strategy, AppliedStrategyResult, AppliedLimit } from '@/types';
 import { generateProductBehaviors, generateShelfMonitors, generateRealtimeMetrics, generateHeatmapData, pickRandomProduct, addDeltaToMetrics, addDeltaToBehaviors } from '@/data/mockGenerator';
 import { generateSessionId, generateOrderId, randomId } from '@/utils/randomUtils';
 import { getProductById } from '@/data/products';
 import { executeExport } from '@/utils/exportUtils';
+import {
+  generateDefaultStrategies,
+  calculateActiveStrategies,
+  getCurrentHour,
+  getProductLimitForStrategies
+} from '@/utils/strategyUtils';
 
 let autoSimInterval: ReturnType<typeof setInterval> | null = null;
 let metricsInterval: ReturnType<typeof setInterval> | null = null;
@@ -12,6 +18,7 @@ const initialBehaviors = generateProductBehaviors();
 const initialMetrics = generateRealtimeMetrics();
 const initialShelves = generateShelfMonitors();
 const initialHeatmap = generateHeatmapData('week');
+const initialStrategies = generateDefaultStrategies();
 
 export const useAppStore = create<AppState>((set, get) => ({
   cart: {
@@ -32,6 +39,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   exportRecords: [],
   orders: [],
   lastPaidOrder: null,
+  strategies: initialStrategies,
 
   bindPhone: (phone) => set(state => ({
     isPhoneBound: true,
@@ -248,5 +256,57 @@ export const useAppStore = create<AppState>((set, get) => ({
       clearInterval(autoSimInterval);
       autoSimInterval = null;
     }
+  },
+
+  addStrategy: (data) => {
+    const newStrat: Strategy = {
+      ...data,
+      id: `strat_${randomId('id')}`,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    set(state => ({ strategies: [newStrat, ...state.strategies] }));
+    return newStrat;
+  },
+
+  updateStrategy: (id, updates) => set(state => ({
+    strategies: state.strategies.map(s =>
+      s.id === id ? { ...s, ...updates, updatedAt: Date.now() } : s
+    )
+  })),
+
+  deleteStrategy: (id) => set(state => ({
+    strategies: state.strategies.filter(s => s.id !== id)
+  })),
+
+  reorderStrategies: (ids) => set(state => {
+    const map = new Map(state.strategies.map(s => [s.id, s]));
+    const reordered: Strategy[] = [];
+    for (let i = 0; i < ids.length; i++) {
+      const s = map.get(ids[i]);
+      if (s) reordered.push({ ...s, priority: ids.length - i, updatedAt: Date.now() });
+    }
+    const remaining = state.strategies.filter(s => !ids.includes(s.id));
+    return { strategies: [...reordered, ...remaining] };
+  }),
+
+  toggleStrategy: (id) => set(state => ({
+    strategies: state.strategies.map(s =>
+      s.id === id ? { ...s, enabled: !s.enabled, updatedAt: Date.now() } : s
+    )
+  })),
+
+  getActiveStrategies: (): AppliedStrategyResult => {
+    return calculateActiveStrategies(get().strategies, getCurrentHour());
+  },
+
+  checkPurchaseLimit: (productId, currentQty) => {
+    const active = get().getActiveStrategies();
+    const limit = getProductLimitForStrategies(productId, active);
+    if (!limit) return { allowed: true };
+    if (currentQty >= limit.maxPerPerson) {
+      return { allowed: false, limit };
+    }
+    return { allowed: true, limit };
   }
 }));

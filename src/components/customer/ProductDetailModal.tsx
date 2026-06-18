@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
   X, ShoppingCart, Eye, EyeOff, Waves, Zap, Volume2,
-  ShieldCheck, Droplets, ChevronDown, ChevronUp, Plus, Clock
+  ShieldCheck, Droplets, ChevronDown, ChevronUp, Plus, Clock,
+  BadgePercent, AlertCircle
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { formatCurrency } from '@/utils/formatters';
+import { getActiveStrategies } from '@/utils/strategyUtils';
 import clsx from 'clsx';
 
 const materialIcons: Record<string, any> = {
@@ -22,6 +24,9 @@ export default function ProductDetailModal() {
   const close = useAppStore(s => s.closeProductDetail);
   const addToCart = useAppStore(s => s.addToCart);
   const isPhoneBound = useAppStore(s => s.isPhoneBound);
+  const cart = useAppStore(s => s.cart);
+  const strategies = useAppStore(s => s.strategies);
+  const checkPurchaseLimit = useAppStore(s => s.checkPurchaseLimit);
 
   const [showClearImg, setShowClearImg] = useState(false);
   const [expandGuide, setExpandGuide] = useState(true);
@@ -39,7 +44,17 @@ export default function ProductDetailModal() {
   const spec = product.specifications;
   const MatIcon = materialIcons[spec.material] || ShieldCheck;
 
+  const active = getActiveStrategies(strategies, new Date().getHours());
+  const discount = active.priceOverrides[product.id];
+  const finalPrice = discount ? discount.finalPrice : product.price;
+  const cartItem = cart?.items.find(it => it.productId === product.id);
+  const cartQty = cartItem?.quantity || 0;
+  const limit = checkPurchaseLimit(product.id, cartQty);
+
   const handleAdd = () => {
+    if (!limit.allowed && limit.limit) {
+      return;
+    }
     addToCart(product.id, 1);
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);
@@ -102,7 +117,13 @@ export default function ProductDetailModal() {
               >
                 {showClearImg ? (<><EyeOff className="w-3.5 h-3.5" /> 隐藏视图</>) : (<><Eye className="w-3.5 h-3.5" /> 查看清晰图</>)}
               </button>
-              {product.originalPrice && (
+              {discount && (
+                <div className="absolute top-4 left-4 px-3 py-1 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 text-[11px] font-bold text-white shadow-lg flex items-center gap-1">
+                  <BadgePercent className="w-3 h-3" />
+                  省 {formatCurrency(discount.originalPrice - discount.finalPrice)}
+                </div>
+              )}
+              {!discount && product.originalPrice && (
                 <div className="absolute top-4 left-4 px-3 py-1 rounded-full bg-gradient-to-r from-rose-500 to-pink-600 text-[11px] font-bold text-white shadow-lg">
                   省 {formatCurrency(product.originalPrice - product.price)}
                 </div>
@@ -132,11 +153,23 @@ export default function ProductDetailModal() {
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-3xl font-bold bg-gradient-to-br from-fuchsia-200 to-pink-300 bg-clip-text text-transparent customer-font-display">
-                    {formatCurrency(product.price)}
+                    {formatCurrency(finalPrice)}
                   </div>
-                  {product.originalPrice && (
-                    <div className="text-sm text-fuchsia-300/40 line-through">
-                      {formatCurrency(product.originalPrice)}
+                  <div className="flex items-baseline gap-2 justify-end">
+                    {discount && (
+                      <span className="text-xs text-emerald-400 font-medium">
+                        {((1 - discount.percent) * 100).toFixed(0)}% OFF
+                      </span>
+                    )}
+                    {(discount || product.originalPrice) && (
+                      <div className="text-sm text-fuchsia-300/40 line-through">
+                        {formatCurrency(discount ? discount.originalPrice : product.originalPrice!)}
+                      </div>
+                    )}
+                  </div>
+                  {discount && (
+                    <div className="text-[10px] text-emerald-400 mt-1">
+                      已应用「{discount.strategyName}」折扣
                     </div>
                   )}
                 </div>
@@ -188,37 +221,54 @@ export default function ProductDetailModal() {
             </div>
           </div>
 
-          <div className="px-7 py-5 border-t border-fuchsia-500/15 flex items-center gap-3">
-            <button
-              onClick={handleAdd}
-              disabled={!product.inStock || added}
-              className={clsx(
-                'flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-semibold transition-all',
-                added
-                  ? 'bg-emerald-500 text-white rounded-full shadow-lg shadow-emerald-500/30'
-                  : 'btn-customer'
-              )}
-            >
-              {added ? (
-                <>
-                  <Plus className="w-5 h-5" />
-                  已加入购物车
-                </>
-              ) : (
-                <>
-                  <ShoppingCart className="w-4.5 h-4.5" />
-                  加入购物车
-                </>
-              )}
-            </button>
-            {isPhoneBound && (
+          <div className="px-7 py-5 border-t border-fuchsia-500/15 space-y-3">
+            {limit.limit && (
+              <div className={`text-xs px-3 py-2 rounded-xl flex items-center gap-2 ${
+                limit.allowed
+                  ? 'bg-amber-500/10 text-amber-300 border border-amber-500/30'
+                  : 'bg-red-500/10 text-red-300 border border-red-500/30'
+              }`}>
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>
+                  {limit.allowed
+                    ? `「${limit.limit.strategyName}」每人限购 ${limit.limit.maxPerPerson} 件，已选购 ${cartQty} 件`
+                    : `已达限购上限 ${limit.limit.maxPerPerson} 件，无法继续添加`
+                  }
+                </span>
+              </div>
+            )}
+            <div className="flex items-center gap-3">
               <button
                 onClick={handleAdd}
-                className="btn-admin-ghost px-5 py-3.5 text-sm font-medium"
+                disabled={!product.inStock || added || (!limit.allowed && !!limit.limit)}
+                className={clsx(
+                  'flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-semibold transition-all',
+                  added
+                    ? 'bg-emerald-500 text-white rounded-full shadow-lg shadow-emerald-500/30'
+                    : 'btn-customer'
+                )}
               >
-                同步手机
+                {added ? (
+                  <>
+                    <Plus className="w-5 h-5" />
+                    已加入购物车
+                  </>
+                ) : (
+                  <>
+                    <ShoppingCart className="w-4.5 h-4.5" />
+                    加入购物车
+                  </>
+                )}
               </button>
-            )}
+              {isPhoneBound && (
+                <button
+                  onClick={handleAdd}
+                  className="btn-admin-ghost px-5 py-3.5 text-sm font-medium"
+                >
+                  同步手机
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

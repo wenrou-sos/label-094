@@ -1,6 +1,7 @@
-import { Trash2, Plus, Minus } from 'lucide-react';
+import { Trash2, Plus, Minus, BadgePercent, AlertCircle } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { formatCurrency } from '@/utils/formatters';
+import { getActiveStrategies } from '@/utils/strategyUtils';
 import type { CartItem as CartItemType } from '@/types';
 
 interface Props {
@@ -10,8 +11,15 @@ interface Props {
 export default function CartItem({ item }: Props) {
   const update = useAppStore(s => s.updateCartQuantity);
   const remove = useAppStore(s => s.removeFromCart);
+  const strategies = useAppStore(s => s.strategies);
+  const checkPurchaseLimit = useAppStore(s => s.checkPurchaseLimit);
 
-  const lineTotal = item.product.price * item.quantity;
+  const active = getActiveStrategies(strategies, new Date().getHours());
+  const discount = active.priceOverrides[item.productId];
+  const finalPrice = discount ? discount.finalPrice : item.product.price;
+  const lineTotal = finalPrice * item.quantity;
+  const limit = checkPurchaseLimit(item.productId, item.quantity - 1);
+  const canIncrease = limit.allowed;
 
   return (
     <div className="glass-customer rounded-2xl p-4 flex items-center gap-4 animate-slide-up group">
@@ -42,6 +50,20 @@ export default function CartItem({ item }: Props) {
           {item.product.sku} · {item.product.specifications.material} · {item.product.specifications.waterproof}
         </div>
 
+        {discount && (
+          <div className="text-[10px] text-emerald-400 flex items-center gap-1">
+            <BadgePercent className="w-3 h-3" />
+            已应用「{discount.strategyName}」{((1 - discount.percent) * 100).toFixed(0)}% OFF
+          </div>
+        )}
+
+        {!limit.allowed && limit.limit && (
+          <div className="text-[10px] text-red-400 flex items-center gap-1">
+            <AlertCircle className="w-3 h-3" />
+            已达限购上限 {limit.limit.maxPerPerson} 件
+          </div>
+        )}
+
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-2 bg-slate-900/50 rounded-full p-0.5">
             <button
@@ -55,7 +77,8 @@ export default function CartItem({ item }: Props) {
             </span>
             <button
               onClick={() => update(item.productId, item.quantity + 1)}
-              className="w-7 h-7 rounded-full flex items-center justify-center text-fuchsia-300/70 hover:text-white hover:bg-fuchsia-500/20 transition-all"
+              disabled={!canIncrease}
+              className="w-7 h-7 rounded-full flex items-center justify-center text-fuchsia-300/70 hover:text-white hover:bg-fuchsia-500/20 transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed"
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
@@ -65,11 +88,18 @@ export default function CartItem({ item }: Props) {
             <div className="text-base font-semibold text-fuchsia-100">
               {formatCurrency(lineTotal)}
             </div>
-            {item.quantity > 1 && (
-              <div className="text-[11px] text-fuchsia-300/50">
-                单 {formatCurrency(item.product.price)}
-              </div>
-            )}
+            <div className="flex items-baseline gap-2 justify-end">
+              {discount && (
+                <span className="text-[10px] text-fuchsia-300/40 line-through">
+                  原 {formatCurrency(item.product.price * item.quantity)}
+                </span>
+              )}
+              {item.quantity > 1 && (
+                <div className="text-[11px] text-fuchsia-300/50">
+                  单 {formatCurrency(finalPrice)}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

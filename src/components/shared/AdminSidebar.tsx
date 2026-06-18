@@ -4,6 +4,7 @@ import {
   BarChart3,
   Calendar,
   Download,
+  Settings,
   Store,
   LogOut
 } from 'lucide-react';
@@ -11,9 +12,10 @@ import clsx from 'clsx';
 
 const navItems = [
   { path: '/admin/dashboard', label: '监控仪表盘', icon: LayoutDashboard },
-  { path: '/admin/analytics', label: '商品行为分析', icon: BarChart3 },
+  { path: '/admin/analytics', label: '行为分析', icon: BarChart3 },
   { path: '/admin/heatmap', label: '营业热力图', icon: Calendar },
-  { path: '/admin/export', label: '数据导出中心', icon: Download },
+  { path: '/admin/strategy', label: '运营策略', icon: Settings },
+  { path: '/admin/export', label: '数据导出', icon: Download }
 ];
 
 type AdminSidebarProps = {
