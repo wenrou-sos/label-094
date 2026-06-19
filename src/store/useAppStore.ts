@@ -22,7 +22,8 @@ const initialShelves = generateShelfMonitors();
 const initialHeatmap = generateHeatmapData('week');
 const initialStrategies = generateDefaultStrategies();
 const initialSimulatedOrders = generateMockOrders(800);
-const initialAssociationRules = generateAssociationRules(initialSimulatedOrders);
+const initialPaidOrders = initialSimulatedOrders.filter(o => o.status === 'paid');
+const initialAssociationRules = generateAssociationRules(initialPaidOrders);
 
 export const useAppStore = create<AppState>((set, get) => ({
   cart: {
@@ -350,7 +351,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   regenerateAssociationRules: (orderCount = 800) => {
     const newOrders = generateMockOrders(orderCount);
-    const newRules = generateAssociationRules(newOrders);
+    const paidOrders = newOrders.filter(o => o.status === 'paid');
+    const newRules = generateAssociationRules(paidOrders);
     set({ simulatedOrders: newOrders, associationRules: newRules });
   },
 

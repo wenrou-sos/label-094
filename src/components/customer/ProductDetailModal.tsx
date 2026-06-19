@@ -245,10 +245,27 @@ export default function ProductDetailModal() {
                     const relActive = getActiveStrategies(strategies, new Date().getHours());
                     const relDiscount = relActive.priceOverrides[rel.product.id];
                     const relFinalPrice = relDiscount ? relDiscount.finalPrice : rel.product.price;
+                    const relCartItem = cart?.items.find(it => it.productId === rel.product.id);
+                    const relCartQty = relCartItem?.quantity || 0;
+                    const relLimit = checkPurchaseLimit(rel.product.id, relCartQty);
+                    const isDisabled = isAdded || !relLimit.allowed;
+
+                    const handleAddRelated = () => {
+                      if (!relLimit.allowed) return;
+                      addToCart(rel.product.id, 1);
+                      setAddedRelated(prev => ({ ...prev, [rel.product.id]: true }));
+                      setTimeout(() => {
+                        setAddedRelated(prev => ({ ...prev, [rel.product.id]: false }));
+                      }, 1500);
+                    };
+
                     return (
                       <div
                         key={rel.product.id}
-                        className="flex items-center gap-3 p-3 rounded-2xl bg-fuchsia-500/5 border border-fuchsia-500/15 hover:border-fuchsia-400/30 transition-all group"
+                        className={clsx(
+                          'flex items-center gap-3 p-3 rounded-2xl bg-fuchsia-500/5 border transition-all group',
+                          isDisabled && !isAdded ? 'opacity-50' : 'border-fuchsia-500/15 hover:border-fuchsia-400/30'
+                        )}
                       >
                         <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-slate-900/50">
                           <img
@@ -269,20 +286,22 @@ export default function ProductDetailModal() {
                               {formatPercent(rel.confidence, 0)} 人一起买
                             </span>
                           </div>
+                          {!relLimit.allowed && relLimit.limit && (
+                            <div className="text-[10px] text-amber-400 mt-0.5 flex items-center gap-0.5">
+                              <AlertCircle className="w-2.5 h-2.5" />
+                              已达购买上限
+                            </div>
+                          )}
                         </div>
                         <button
-                          onClick={() => {
-                            addToCart(rel.product.id, 1);
-                            setAddedRelated(prev => ({ ...prev, [rel.product.id]: true }));
-                            setTimeout(() => {
-                              setAddedRelated(prev => ({ ...prev, [rel.product.id]: false }));
-                            }, 1500);
-                          }}
-                          disabled={isAdded}
+                          onClick={handleAddRelated}
+                          disabled={isDisabled}
                           className={clsx(
                             'shrink-0 flex items-center gap-1 px-3 py-2 rounded-full text-xs font-semibold transition-all',
                             isAdded
                               ? 'bg-emerald-500 text-white'
+                              : !relLimit.allowed
+                              ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
                               : 'bg-fuchsia-500/15 text-fuchsia-200 border border-fuchsia-500/30 hover:bg-fuchsia-500/25'
                           )}
                         >
@@ -291,6 +310,8 @@ export default function ProductDetailModal() {
                               <Plus className="w-3.5 h-3.5" />
                               已加购
                             </>
+                          ) : !relLimit.allowed ? (
+                            '已达上限'
                           ) : (
                             <>
                               <ShoppingBag className="w-3.5 h-3.5" />

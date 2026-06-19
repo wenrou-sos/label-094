@@ -6,6 +6,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { formatCurrency, formatPercent } from '@/utils/formatters';
 import { getActiveStrategies } from '@/utils/strategyUtils';
 import { ShoppingCart, ArrowRight, Trash2, Tag, ArrowLeft, Sparkles, AlertCircle, BadgePercent, Link2, Plus, ShoppingBag } from 'lucide-react';
+import clsx from 'clsx';
 
 export default function CustomerCart() {
   const cart = useAppStore(s => s.cart);
@@ -190,40 +191,71 @@ export default function CustomerCart() {
                   </span>
                 </div>
                 <div className="space-y-2">
-                  {pairingRecs.map(rec => (
-                    <div
-                      key={rec.product.id}
-                      className="flex items-center gap-3 p-3 rounded-2xl bg-amber-500/5 border border-amber-500/15 hover:border-amber-400/30 transition-all group"
-                    >
-                      <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-slate-900/50">
-                        <img
-                          src={rec.product.image}
-                          alt=""
-                          className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity"
-                          loading="lazy"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-fuchsia-50 truncate">{rec.product.name}</div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-base font-bold bg-gradient-to-br from-amber-200 to-orange-300 bg-clip-text text-transparent customer-font-display">
-                            {formatCurrency(rec.product.price)}
-                          </span>
-                          <span className="text-[10px] text-amber-300/70 flex items-center gap-0.5">
-                            <Link2 className="w-2.5 h-2.5" />
-                            {formatPercent(rec.confidence, 0)} 人搭配购买
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => addToCart(rec.product.id, 1)}
-                        className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-full text-xs font-semibold bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-200 border border-amber-500/30 hover:from-amber-500/30 hover:to-orange-500/30 transition-all"
+                  {pairingRecs.map(rec => {
+                    const recCartItem = cart?.items.find(it => it.productId === rec.product.id);
+                    const recCartQty = recCartItem?.quantity || 0;
+                    const recLimit = checkPurchaseLimit(rec.product.id, recCartQty);
+                    const isDisabled = !recLimit.allowed;
+
+                    const handleAddPairing = () => {
+                      if (!recLimit.allowed) return;
+                      addToCart(rec.product.id, 1);
+                    };
+
+                    return (
+                      <div
+                        key={rec.product.id}
+                        className={clsx(
+                          'flex items-center gap-3 p-3 rounded-2xl bg-amber-500/5 border transition-all group',
+                          isDisabled ? 'opacity-50 border-amber-500/10' : 'border-amber-500/15 hover:border-amber-400/30'
+                        )}
                       >
-                        <ShoppingBag className="w-3.5 h-3.5" />
-                        加购
-                      </button>
-                    </div>
-                  ))}
+                        <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-slate-900/50">
+                          <img
+                            src={rec.product.image}
+                            alt=""
+                            className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity"
+                            loading="lazy"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-fuchsia-50 truncate">{rec.product.name}</div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-base font-bold bg-gradient-to-br from-amber-200 to-orange-300 bg-clip-text text-transparent customer-font-display">
+                              {formatCurrency(rec.product.price)}
+                            </span>
+                            <span className="text-[10px] text-amber-300/70 flex items-center gap-0.5">
+                              <Link2 className="w-2.5 h-2.5" />
+                              {formatPercent(rec.confidence, 0)} 人搭配购买
+                            </span>
+                          </div>
+                          {!recLimit.allowed && recLimit.limit && (
+                            <div className="text-[10px] text-amber-400 mt-0.5 flex items-center gap-0.5">
+                              <AlertCircle className="w-2.5 h-2.5" />
+                              已达购买上限
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={handleAddPairing}
+                          disabled={isDisabled}
+                          className={clsx(
+                            'shrink-0 flex items-center gap-1 px-3 py-2 rounded-full text-xs font-semibold transition-all',
+                            isDisabled
+                              ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                              : 'bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-200 border border-amber-500/30 hover:from-amber-500/30 hover:to-orange-500/30'
+                          )}
+                        >
+                          {isDisabled ? '已达上限' : (
+                            <>
+                              <ShoppingBag className="w-3.5 h-3.5" />
+                              加购
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="text-[10px] text-amber-300/60 text-center pt-1 flex items-center justify-center gap-1">
                   <Plus className="w-3 h-3" />

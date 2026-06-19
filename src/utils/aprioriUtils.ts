@@ -177,7 +177,7 @@ export function getTopRelatedProducts(
   const related = new Map<string, { product: Product; confidence: number; lift: number }>();
 
   for (const rule of rules) {
-    if (rule.antecedentIds.includes(productId) && rule.consequentIds.length === 1) {
+    if (rule.antecedentIds.length === 1 && rule.antecedentIds[0] === productId && rule.consequentIds.length === 1) {
       const consId = rule.consequentIds[0];
       const existing = related.get(consId);
       if (!existing || rule.confidence > existing.confidence) {
@@ -189,7 +189,7 @@ export function getTopRelatedProducts(
       }
     }
 
-    if (rule.consequentIds.includes(productId) && rule.antecedentIds.length === 1) {
+    if (rule.consequentIds.length === 1 && rule.consequentIds[0] === productId && rule.antecedentIds.length === 1) {
       const antId = rule.antecedentIds[0];
       const existing = related.get(antId);
       if (!existing || rule.confidence > existing.confidence) {
