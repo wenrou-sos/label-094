@@ -5,8 +5,9 @@ import ProductDetailModal from '@/components/customer/ProductDetailModal';
 import { Sparkles, Shield, Clock, MapPin, ArrowRight, Users, ShoppingCart, BadgePercent, Filter, AlertCircle, Eye } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { Link } from 'react-router-dom';
+import clsx from 'clsx';
 import { formatCurrency } from '@/utils/formatters';
-import { products, shelfInfo } from '@/data/products';
+import { shelfInfo } from '@/data/products';
 import { useEffect, useRef, useState } from 'react';
 import { getCurrentHour, formatTimeRange, beginnerPriceThreshold } from '@/utils/strategyUtils';
 import type { AppliedStrategyResult } from '@/types';
@@ -14,6 +15,7 @@ import type { AppliedStrategyResult } from '@/types';
 export default function CustomerHome() {
   const cart = useAppStore(s => s.cart);
   const metrics = useAppStore(s => s.realtimeMetrics);
+  const products = useAppStore(s => s.products);
   const getActiveStrategies = useAppStore(s => s.getActiveStrategies);
   const addToCart = useAppStore(s => s.addToCart);
   const checkPurchaseLimit = useAppStore(s => s.checkPurchaseLimit);
@@ -280,31 +282,55 @@ export default function CustomerHome() {
                         const limit = activeStrategies.find(s => s.type === 'limit')
                           ? checkPurchaseLimit(product.id, cartQty)
                           : null;
+                        const isOutOfStock = product.stock === 0;
+                        const isLowStock = product.stock > 0 && product.stock <= product.minStock;
 
                         return (
                           <div
                             key={product.id}
-                            className="glass-customer rounded-2xl p-4 group hover:shadow-customer-glow transition-all duration-300 hover:-translate-y-1 overflow-hidden"
+                            className={clsx(
+                              'glass-customer rounded-2xl p-4 group hover:shadow-customer-glow transition-all duration-300 hover:-translate-y-1 overflow-hidden',
+                              isOutOfStock && 'opacity-60 grayscale-[30%]'
+                            )}
                           >
                             <div
-                              className="aspect-[4/3] rounded-xl overflow-hidden mb-3 cursor-pointer bg-slate-800/50 relative"
-                              onClick={() => showProductDetail(product)}
+                              className={clsx(
+                                'aspect-[4/3] rounded-xl overflow-hidden mb-3 bg-slate-800/50 relative',
+                                !isOutOfStock && 'cursor-pointer'
+                              )}
+                              onClick={() => !isOutOfStock && showProductDetail(product)}
                             >
                               <img
                                 src={product.image}
                                 alt={product.name}
-                                className="w-full h-full object-cover privacy-blur group-hover:blur-sm transition-all duration-300"
+                                className={clsx(
+                                  'w-full h-full object-cover privacy-blur transition-all duration-300',
+                                  !isOutOfStock && 'group-hover:blur-sm'
+                                )}
                                 loading="lazy"
                               />
-                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 backdrop-blur-xs">
-                                <span className="text-xs text-white/90 px-3 py-1 rounded-full bg-white/10 border border-white/20">
-                                  点击查看详情
-                                </span>
-                              </div>
-                              {discount && (
+                              {isOutOfStock ? (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-xs">
+                                  <span className="text-xs text-white px-4 py-2 rounded-full bg-rose-500/80 border border-rose-400/40 font-semibold">
+                                    暂时缺货
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 backdrop-blur-xs">
+                                  <span className="text-xs text-white/90 px-3 py-1 rounded-full bg-white/10 border border-white/20">
+                                    点击查看详情
+                                  </span>
+                                </div>
+                              )}
+                              {discount && !isOutOfStock && (
                                 <div className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-gradient-to-r from-emerald-500 to-emerald-400 text-white text-[10px] font-bold shadow-lg flex items-center gap-1">
                                   <BadgePercent className="w-3 h-3" />
                                   {((1 - discount.percent) * 100).toFixed(0)}% OFF
+                                </div>
+                              )}
+                              {isLowStock && !isOutOfStock && (
+                                <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-gradient-to-r from-amber-500 to-orange-400 text-white text-[10px] font-bold shadow-lg">
+                                  仅剩 {product.stock} 件
                                 </div>
                               )}
                             </div>
@@ -312,8 +338,13 @@ export default function CustomerHome() {
                             <div className="space-y-2">
                               <div className="flex items-start justify-between gap-2 min-h-[40px]">
                                 <h4
-                                  className="text-sm font-medium text-fuchsia-50 line-clamp-2 leading-snug cursor-pointer hover:text-fuchsia-200 transition-colors"
-                                  onClick={() => showProductDetail(product)}
+                                  className={clsx(
+                                    'text-sm font-medium line-clamp-2 leading-snug',
+                                    isOutOfStock
+                                      ? 'text-slate-400'
+                                      : 'text-fuchsia-50 cursor-pointer hover:text-fuchsia-200 transition-colors'
+                                  )}
+                                  onClick={() => !isOutOfStock && showProductDetail(product)}
                                 >
                                   {product.name}
                                 </h4>
@@ -323,7 +354,12 @@ export default function CustomerHome() {
                                 {product.tags.slice(0, 3).map(tag => (
                                   <span
                                     key={tag}
-                                    className="text-[10px] px-1.5 py-0.5 rounded bg-fuchsia-500/10 text-fuchsia-300/80 border border-fuchsia-500/20"
+                                    className={clsx(
+                                      'text-[10px] px-1.5 py-0.5 rounded border',
+                                      isOutOfStock
+                                        ? 'bg-slate-700/30 text-slate-500 border-slate-600/20'
+                                        : 'bg-fuchsia-500/10 text-fuchsia-300/80 border-fuchsia-500/20'
+                                    )}
                                   >
                                     {tag}
                                   </span>
@@ -333,16 +369,21 @@ export default function CustomerHome() {
                               <div className="flex items-end justify-between pt-1">
                                 <div className="space-y-0.5">
                                   <div className="flex items-baseline gap-2">
-                                    <span className="text-lg font-bold bg-gradient-to-br from-fuchsia-200 to-pink-300 bg-clip-text text-transparent admin-font-mono leading-none">
+                                    <span className={clsx(
+                                      'text-lg font-bold admin-font-mono leading-none',
+                                      isOutOfStock
+                                        ? 'text-slate-500'
+                                        : 'bg-gradient-to-br from-fuchsia-200 to-pink-300 bg-clip-text text-transparent'
+                                    )}>
                                       {formatCurrency(finalPrice)}
                                     </span>
-                                    {discount && (
+                                    {discount && !isOutOfStock && (
                                       <span className="text-xs text-fuchsia-300/40 line-through admin-font-mono">
                                         {formatCurrency(discount.originalPrice)}
                                       </span>
                                     )}
                                   </div>
-                                  {discount && (
+                                  {discount && !isOutOfStock && (
                                     <div className="text-[10px] text-emerald-400">
                                       省 {formatCurrency(discount.originalPrice - discount.finalPrice)}
                                     </div>
@@ -350,7 +391,12 @@ export default function CustomerHome() {
                                 </div>
 
                                 <div className="flex flex-col items-end gap-1">
-                                  {limit?.limit && !limit.allowed ? (
+                                  {isOutOfStock ? (
+                                    <div className="text-[10px] text-slate-500 flex items-center gap-0.5">
+                                      <AlertCircle className="w-2.5 h-2.5" />
+                                      暂时缺货
+                                    </div>
+                                  ) : limit?.limit && !limit.allowed ? (
                                     <div className="text-[9px] text-amber-400 flex items-center gap-0.5">
                                       <AlertCircle className="w-2.5 h-2.5" />
                                       {limit.limit.scope === 'per_order' ? '每单已达上限' : '已达上限'}

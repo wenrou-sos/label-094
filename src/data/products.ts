@@ -22,7 +22,10 @@ export const products: Product[] = [
       battery: '800mAh锂电池'
     },
     shelfId: 'shelf_a',
-    inStock: true
+    inStock: true,
+    stock: 32,
+    minStock: 10,
+    maxStock: 50
   },
   {
     id: 'p_002',
@@ -45,7 +48,10 @@ export const products: Product[] = [
       distance: '遥控距离8-10米'
     },
     shelfId: 'shelf_a',
-    inStock: true
+    inStock: true,
+    stock: 18,
+    minStock: 10,
+    maxStock: 50
   },
   {
     id: 'p_003',
@@ -67,7 +73,10 @@ export const products: Product[] = [
       temp: '耐温-20°C至150°C'
     },
     shelfId: 'shelf_b',
-    inStock: true
+    inStock: true,
+    stock: 25,
+    minStock: 10,
+    maxStock: 50
   },
   {
     id: 'p_004',
@@ -90,7 +99,10 @@ export const products: Product[] = [
       inner: '3D立体颗粒通道'
     },
     shelfId: 'shelf_b',
-    inStock: true
+    inStock: true,
+    stock: 42,
+    minStock: 10,
+    maxStock: 50
   },
   {
     id: 'p_005',
@@ -112,7 +124,10 @@ export const products: Product[] = [
       bt: '蓝牙5.0，续航约2小时'
     },
     shelfId: 'shelf_c',
-    inStock: true
+    inStock: false,
+    stock: 0,
+    minStock: 10,
+    maxStock: 50
   },
   {
     id: 'p_006',
@@ -135,7 +150,10 @@ export const products: Product[] = [
       modes: '7种震动模式'
     },
     shelfId: 'shelf_c',
-    inStock: true
+    inStock: true,
+    stock: 15,
+    minStock: 10,
+    maxStock: 50
   },
   {
     id: 'p_007',
@@ -157,7 +175,10 @@ export const products: Product[] = [
       scents: '玫瑰/茉莉/檀香/薰衣草'
     },
     shelfId: 'shelf_d',
-    inStock: true
+    inStock: true,
+    stock: 28,
+    minStock: 10,
+    maxStock: 50
   },
   {
     id: 'p_008',
@@ -180,7 +201,10 @@ export const products: Product[] = [
       pieces: '含5件单品组合'
     },
     shelfId: 'shelf_d',
-    inStock: true
+    inStock: true,
+    stock: 38,
+    minStock: 10,
+    maxStock: 50
   },
   {
     id: 'p_009',
@@ -202,7 +226,10 @@ export const products: Product[] = [
       battery: '2000mAh，续航6小时'
     },
     shelfId: 'shelf_a',
-    inStock: true
+    inStock: true,
+    stock: 22,
+    minStock: 10,
+    maxStock: 50
   },
   {
     id: 'p_010',
@@ -225,7 +252,10 @@ export const products: Product[] = [
       levels: '5档松紧可调'
     },
     shelfId: 'shelf_b',
-    inStock: true
+    inStock: true,
+    stock: 3,
+    minStock: 10,
+    maxStock: 50
   },
   {
     id: 'p_011',
@@ -247,7 +277,10 @@ export const products: Product[] = [
       modes: '4档压力模式可选'
     },
     shelfId: 'shelf_b',
-    inStock: true
+    inStock: true,
+    stock: 4,
+    minStock: 10,
+    maxStock: 50
   },
   {
     id: 'p_012',
@@ -270,7 +303,10 @@ export const products: Product[] = [
       size: '约3.5×6.5cm'
     },
     shelfId: 'shelf_d',
-    inStock: true
+    inStock: true,
+    stock: 35,
+    minStock: 10,
+    maxStock: 50
   }
 ];
 

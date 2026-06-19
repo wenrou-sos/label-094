@@ -3,16 +3,20 @@ import AdminSidebar from '@/components/shared/AdminSidebar';
 import MetricCard from '@/components/admin/MetricCard';
 import { useAppStore } from '@/store/useAppStore';
 import {
-  Users, DollarSign, ShoppingCart, TrendingUp, HandPlatter, RefreshCw, Radio
+  Users, DollarSign, ShoppingCart, TrendingUp, HandPlatter, RefreshCw, Radio,
+  Package, AlertTriangle, XCircle
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { formatPercent, formatCurrency, formatDateTime, formatNumber } from '@/utils/formatters';
+import clsx from 'clsx';
 
 export default function AdminDashboard() {
   const metrics = useAppStore(s => s.realtimeMetrics);
   const shelves = useAppStore(s => s.shelfMonitors);
   const behaviors = useAppStore(s => s.productBehaviors);
   const refresh = useAppStore(s => s.refreshMetrics);
+  const getStockStats = useAppStore(s => s.getStockStats);
+  const stockStats = getStockStats();
 
   useEffect(() => {
     const t = setInterval(refresh, 60000);
@@ -105,6 +109,69 @@ export default function AdminDashboard() {
             accent="rose"
             subtitle="单笔消费"
           />
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-4">
+          <div className="glass-admin rounded-xl p-5 border-r-4 border-emerald-400/50">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs text-emerald-300/80">库存充足</div>
+              <Package className="w-4 h-4 text-emerald-300" />
+            </div>
+            <div className="text-2xl font-bold text-white admin-font-mono mb-1">
+              {stockStats.inStock}
+            </div>
+            <div className="text-[11px] text-slate-400">
+              库存大于警戒线，销售正常
+            </div>
+          </div>
+          <div className={clsx(
+            'glass-admin rounded-xl p-5 border-r-4 transition-all',
+            stockStats.lowStock > 0 ? 'border-amber-400/50 animate-pulse-slow' : 'border-slate-600/50'
+          )}>
+            <div className="flex items-center justify-between mb-3">
+              <div className={clsx(
+                'text-xs',
+                stockStats.lowStock > 0 ? 'text-amber-300/80' : 'text-slate-400'
+              )}>库存偏低</div>
+              <AlertTriangle className={clsx(
+                'w-4 h-4',
+                stockStats.lowStock > 0 ? 'text-amber-300' : 'text-slate-500'
+              )} />
+            </div>
+            <div className={clsx(
+              'text-2xl font-bold admin-font-mono mb-1',
+              stockStats.lowStock > 0 ? 'text-amber-300' : 'text-slate-400'
+            )}>
+              {stockStats.lowStock}
+            </div>
+            <div className="text-[11px] text-slate-400">
+              库存≤警戒线，建议补货
+            </div>
+          </div>
+          <div className={clsx(
+            'glass-admin rounded-xl p-5 border-r-4 transition-all',
+            stockStats.outOfStock > 0 ? 'border-rose-500/50 animate-pulse-slow' : 'border-slate-600/50'
+          )}>
+            <div className="flex items-center justify-between mb-3">
+              <div className={clsx(
+                'text-xs',
+                stockStats.outOfStock > 0 ? 'text-rose-300/80' : 'text-slate-400'
+              )}>暂时缺货</div>
+              <XCircle className={clsx(
+                'w-4 h-4',
+                stockStats.outOfStock > 0 ? 'text-rose-400' : 'text-slate-500'
+              )} />
+            </div>
+            <div className={clsx(
+              'text-2xl font-bold admin-font-mono mb-1',
+              stockStats.outOfStock > 0 ? 'text-rose-400' : 'text-slate-400'
+            )}>
+              {stockStats.outOfStock}
+            </div>
+            <div className="text-[11px] text-slate-400">
+              库存为0，无法销售
+            </div>
+          </div>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">

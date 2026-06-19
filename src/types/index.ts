@@ -19,6 +19,19 @@ export interface Product {
   };
   shelfId: string;
   inStock: boolean;
+  stock: number;
+  minStock: number;
+  maxStock: number;
+}
+
+export interface StockRestockLog {
+  id: string;
+  productId: string;
+  productName: string;
+  restockAmount: number;
+  previousStock: number;
+  newStock: number;
+  restockedAt: number;
 }
 
 export interface CartItem {
@@ -126,6 +139,8 @@ export interface AppState {
   strategies: Strategy[];
   associationRules: AssociationRule[];
   simulatedOrders: Order[];
+  restockLogs: StockRestockLog[];
+  products: Product[];
 
   bindPhone: (phone: string) => void;
   showProductDetail: (product: Product) => void;
@@ -158,6 +173,10 @@ export interface AppState {
 
   getProductRecommendations: (productId: string, limit?: number) => { product: Product; confidence: number; lift: number }[];
   getCartPairingRecommendations: (cartProductIds: string[], limit?: number) => { product: Product; confidence: number; missingAmount: number }[];
+
+  updateProductStock: (productId: string, newStock: number) => void;
+  restockProduct: (productId: string) => Promise<boolean>;
+  getStockStats: () => { inStock: number; lowStock: number; outOfStock: number };
 }
 
 export type StrategyType = 'filter' | 'discount' | 'limit';

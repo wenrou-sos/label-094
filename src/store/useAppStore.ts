@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import type { AppState, Order, ExportRecord, Strategy, AppliedStrategyResult, AssociationRule } from '@/types';
+import type { AppState, Order, ExportRecord, Strategy, AppliedStrategyResult, AssociationRule, Product, StockRestockLog } from '@/types';
 import { generateProductBehaviors, generateShelfMonitors, generateRealtimeMetrics, generateHeatmapData, pickRandomProduct, addDeltaToMetrics, addDeltaToBehaviors, generateMockOrders } from '@/data/mockGenerator';
 import { generateSessionId, generateOrderId, randomId } from '@/utils/randomUtils';
-import { getProductById } from '@/data/products';
+import { getProductById, products as initialProducts } from '@/data/products';
 import { executeExport } from '@/utils/exportUtils';
 import {
   generateDefaultStrategies,
@@ -47,6 +47,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   strategies: initialStrategies,
   associationRules: initialAssociationRules,
   simulatedOrders: initialSimulatedOrders,
+  restockLogs: [],
+  products: initialProducts.map(p => ({ ...p })),
 
   bindPhone: (phone) => set(state => ({
     isPhoneBound: true,
@@ -65,7 +67,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   addToCart: (productId, quantity = 1) => set(state => {
     const product = getProductById(productId);
-    if (!product || !state.cart) return state;
+    const currentProduct = state.products.find(p => p.id === productId);
+    if (!product || !state.cart || !currentProduct) return state;
+
+    if (currentProduct.stock < quantity) {
+      return state;
+    }
 
     const existingIdx = state.cart.items.findIndex(it => it.productId === productId);
     let newItems;
@@ -83,34 +90,72 @@ export const useAppStore = create<AppState>((set, get) => ({
       }];
     }
 
+    const newProducts = state.products.map(p =>
+      p.id === productId
+        ? { ...p, stock: p.stock - quantity, inStock: p.stock - quantity > 0 }
+        : p
+    );
+
     return {
-      cart: { ...state.cart, items: newItems, updatedAt: Date.now() }
+      cart: { ...state.cart, items: newItems, updatedAt: Date.now() },
+      products: newProducts
     };
   }),
 
   removeFromCart: (productId) => set(state => {
     if (!state.cart) return state;
+    const item = state.cart.items.find(it => it.productId === productId);
+    if (!item) return state;
+
+    const newProducts = state.products.map(p =>
+      p.id === productId
+        ? { ...p, stock: p.stock + item.quantity, inStock: true }
+        : p
+    );
+
     return {
       cart: {
         ...state.cart,
         items: state.cart.items.filter(it => it.productId !== productId),
         updatedAt: Date.now()
-      }
+      },
+      products: newProducts
     };
   }),
 
   updateCartQuantity: (productId, quantity) => set(state => {
     if (!state.cart) return state;
+    const item = state.cart.items.find(it => it.productId === productId);
+    if (!item) return state;
+
+    const delta = quantity - item.quantity;
+    const currentProduct = state.products.find(p => p.id === productId);
+    if (!currentProduct || currentProduct.stock < delta) {
+      return state;
+    }
+
     if (quantity <= 0) {
-      const items = state.cart.items.filter(it => it.productId !== productId);
+      const newProducts = state.products.map(p =>
+        p.id === productId
+          ? { ...p, stock: p.stock + item.quantity, inStock: true }
+          : p
+      );
       return {
         cart: {
           ...state.cart,
-          items,
+          items: state.cart.items.filter(it => it.productId !== productId),
           updatedAt: Date.now()
-        }
+        },
+        products: newProducts
       };
     }
+
+    const newProducts = state.products.map(p =>
+      p.id === productId
+        ? { ...p, stock: p.stock - delta, inStock: p.stock - delta > 0 }
+        : p
+    );
+
     return {
       cart: {
         ...state.cart,
@@ -118,13 +163,25 @@ export const useAppStore = create<AppState>((set, get) => ({
           it.productId === productId ? { ...it, quantity } : it
         ),
         updatedAt: Date.now()
-      }
+      },
+      products: newProducts
     };
   }),
 
-  clearCart: () => set(state => state.cart ? {
-    cart: { ...state.cart, items: [], updatedAt: Date.now() }
-  } : state),
+  clearCart: () => set(state => {
+    if (!state.cart) return state;
+    const newProducts = state.products.map(p => {
+      const cartItem = state.cart!.items.find(it => it.productId === p.id);
+      if (cartItem) {
+        return { ...p, stock: p.stock + cartItem.quantity, inStock: true };
+      }
+      return p;
+    });
+    return {
+      cart: { ...state.cart, items: [], updatedAt: Date.now() },
+      products: newProducts
+    };
+  }),
 
   clearReceipt: () => set({ lastPaidOrder: null, currentOrder: null }),
 
@@ -362,5 +419,75 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   getCartPairingRecommendations: (cartProductIds, limit = 2) => {
     return getCartRecommendations(cartProductIds, get().associationRules, limit);
+  },
+
+  updateProductStock: (productId, newStock) => set(state => {
+    const newProducts = state.products.map(p => {
+      if (p.id !== productId) return p;
+      return {
+        ...p,
+        stock: newStock,
+        inStock: newStock > 0
+      };
+    });
+
+    const newBehaviors = state.productBehaviors.map(b => {
+      if (b.productId !== productId) return b;
+      const updatedProduct = newProducts.find(p => p.id === productId);
+      if (!updatedProduct) return b;
+      return { ...b, product: updatedProduct };
+    });
+
+    return { products: newProducts, productBehaviors: newBehaviors };
+  }),
+
+  restockProduct: async (productId) => {
+    const state = get();
+    const product = state.products.find(p => p.id === productId);
+    if (!product) return false;
+
+    const previousStock = product.stock;
+    const restockAmount = product.maxStock - previousStock;
+
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const newStock = product.maxStock;
+
+    get().updateProductStock(productId, newStock);
+
+    const log: StockRestockLog = {
+      id: `restock_${Date.now()}_${randomId()}`,
+      productId,
+      productName: product.name,
+      restockAmount,
+      previousStock,
+      newStock,
+      restockedAt: Date.now()
+    };
+
+    set(s => ({
+      restockLogs: [log, ...s.restockLogs].slice(0, 100)
+    }));
+
+    return true;
+  },
+
+  getStockStats: () => {
+    const products = get().products;
+    let inStock = 0;
+    let lowStock = 0;
+    let outOfStock = 0;
+
+    for (const p of products) {
+      if (p.stock === 0) {
+        outOfStock++;
+      } else if (p.stock <= p.minStock) {
+        lowStock++;
+      } else {
+        inStock++;
+      }
+    }
+
+    return { inStock, lowStock, outOfStock };
   }
 }));

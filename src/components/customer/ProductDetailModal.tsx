@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   X, ShoppingCart, Eye, EyeOff, Waves, Zap, Volume2,
   ShieldCheck, Droplets, ChevronDown, ChevronUp, Plus, Clock,
-  BadgePercent, AlertCircle, Sparkles, Link2, ShoppingBag
+  BadgePercent, AlertCircle, Sparkles, Link2, ShoppingBag, Package
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { formatCurrency, formatPercent } from '@/utils/formatters';
@@ -19,7 +19,8 @@ const materialIcons: Record<string, any> = {
 };
 
 export default function ProductDetailModal() {
-  const product = useAppStore(s => s.activeProduct);
+  const activeProduct = useAppStore(s => s.activeProduct);
+  const products = useAppStore(s => s.products);
   const open = useAppStore(s => s.isDetailModalOpen);
   const close = useAppStore(s => s.closeProductDetail);
   const addToCart = useAppStore(s => s.addToCart);
@@ -41,11 +42,16 @@ export default function ProductDetailModal() {
       setAdded(false);
       setAddedRelated({});
     }
-  }, [open, product?.id]);
+  }, [open, activeProduct?.id]);
+
+  const product = useMemo(() => {
+    if (!activeProduct) return null;
+    return products.find(p => p.id === activeProduct.id) || activeProduct;
+  }, [activeProduct, products]);
 
   const relatedProducts = useMemo(() => {
     if (!product) return [];
-    return getProductRecommendations(product.id, 3);
+    return getProductRecommendations(product.id, 3).filter(r => r.product.stock > 0);
   }, [product, getProductRecommendations]);
 
   if (!open || !product) return null;
@@ -61,7 +67,11 @@ export default function ProductDetailModal() {
   const totalCartQty = cart?.items.reduce((s, it) => s + it.quantity, 0) || 0;
   const limit = checkPurchaseLimit(product.id, cartQty);
 
+  const isOutOfStock = product.stock === 0;
+  const isLowStock = product.stock > 0 && product.stock <= product.minStock;
+
   const handleAdd = () => {
+    if (isOutOfStock) return;
     if (!limit.allowed && limit.limit) {
       return;
     }
@@ -156,8 +166,15 @@ export default function ProductDetailModal() {
                   <div className="mt-1.5 flex items-center gap-3 text-xs text-fuchsia-300/60">
                     <span>SKU: <span className="text-fuchsia-300/80 font-mono">{product.sku}</span></span>
                     <span>分类: {product.category}</span>
-                    <span className={clsx('px-2 py-0.5 rounded', product.inStock ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300')}>
-                      {product.inStock ? '库存充足' : '暂缺货'}
+                    <span className={clsx(
+                      'px-2 py-0.5 rounded',
+                      isOutOfStock
+                        ? 'bg-rose-500/15 text-rose-300'
+                        : isLowStock
+                        ? 'bg-amber-500/15 text-amber-300'
+                        : 'bg-emerald-500/15 text-emerald-300'
+                    )}>
+                      {isOutOfStock ? '暂时缺货' : isLowStock ? `库存紧张 · 仅剩${product.stock}件` : '库存充足'}
                     </span>
                   </div>
                 </div>
@@ -248,10 +265,12 @@ export default function ProductDetailModal() {
                     const relCartItem = cart?.items.find(it => it.productId === rel.product.id);
                     const relCartQty = relCartItem?.quantity || 0;
                     const relLimit = checkPurchaseLimit(rel.product.id, relCartQty);
-                    const isDisabled = isAdded || !relLimit.allowed;
+                    const relIsOutOfStock = rel.product.stock === 0;
+                    const relIsLowStock = rel.product.stock > 0 && rel.product.stock <= rel.product.minStock;
+                    const isDisabled = isAdded || !relLimit.allowed || relIsOutOfStock;
 
                     const handleAddRelated = () => {
-                      if (!relLimit.allowed) return;
+                      if (relIsOutOfStock || !relLimit.allowed) return;
                       addToCart(rel.product.id, 1);
                       setAddedRelated(prev => ({ ...prev, [rel.product.id]: true }));
                       setTimeout(() => {
@@ -264,29 +283,60 @@ export default function ProductDetailModal() {
                         key={rel.product.id}
                         className={clsx(
                           'flex items-center gap-3 p-3 rounded-2xl bg-fuchsia-500/5 border transition-all group',
-                          isDisabled && !isAdded ? 'opacity-50' : 'border-fuchsia-500/15 hover:border-fuchsia-400/30'
+                          isDisabled && !isAdded ? 'opacity-50' : 'border-fuchsia-500/15 hover:border-fuchsia-400/30',
+                          relIsOutOfStock && 'grayscale-[30%]'
                         )}
                       >
-                        <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-slate-900/50">
+                        <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-slate-900/50 relative">
                           <img
                             src={rel.product.image}
                             alt=""
-                            className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity"
+                            className={clsx(
+                              'w-full h-full object-cover transition-opacity',
+                              relIsOutOfStock ? 'opacity-30 grayscale' : 'opacity-70 group-hover:opacity-100'
+                            )}
                             loading="lazy"
                           />
+                          {relIsOutOfStock && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <AlertCircle className="w-4 h-4 text-rose-400" />
+                            </div>
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-fuchsia-50 truncate">{rel.product.name}</div>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-lg font-bold bg-gradient-to-br from-fuchsia-200 to-pink-300 bg-clip-text text-transparent customer-font-display">
+                          <div className={clsx(
+                            'text-sm font-medium truncate',
+                            relIsOutOfStock ? 'text-slate-400' : 'text-fuchsia-50'
+                          )}>
+                            {rel.product.name}
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <span className={clsx(
+                              'text-lg font-bold customer-font-display',
+                              relIsOutOfStock
+                                ? 'text-slate-500'
+                                : 'bg-gradient-to-br from-fuchsia-200 to-pink-300 bg-clip-text text-transparent'
+                            )}>
                               {formatCurrency(relFinalPrice)}
                             </span>
                             <span className="text-[10px] text-fuchsia-300/50 flex items-center gap-0.5">
                               <Link2 className="w-2.5 h-2.5" />
                               {formatPercent(rel.confidence, 0)} 人一起买
                             </span>
+                            {relIsLowStock && !relIsOutOfStock && (
+                              <span className="text-[10px] text-amber-400 flex items-center gap-0.5">
+                                <Package className="w-2.5 h-2.5" />
+                                仅剩{rel.product.stock}件
+                              </span>
+                            )}
+                            {relIsOutOfStock && (
+                              <span className="text-[10px] text-rose-400 flex items-center gap-0.5">
+                                <AlertCircle className="w-2.5 h-2.5" />
+                                暂时缺货
+                              </span>
+                            )}
                           </div>
-                          {!relLimit.allowed && relLimit.limit && (
+                          {!relLimit.allowed && relLimit.limit && !relIsOutOfStock && (
                             <div className="text-[10px] text-amber-400 mt-0.5 flex items-center gap-0.5">
                               <AlertCircle className="w-2.5 h-2.5" />
                               已达购买上限
@@ -300,6 +350,8 @@ export default function ProductDetailModal() {
                             'shrink-0 flex items-center gap-1 px-3 py-2 rounded-full text-xs font-semibold transition-all',
                             isAdded
                               ? 'bg-emerald-500 text-white'
+                              : relIsOutOfStock
+                              ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
                               : !relLimit.allowed
                               ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
                               : 'bg-fuchsia-500/15 text-fuchsia-200 border border-fuchsia-500/30 hover:bg-fuchsia-500/25'
@@ -310,6 +362,8 @@ export default function ProductDetailModal() {
                               <Plus className="w-3.5 h-3.5" />
                               已加购
                             </>
+                          ) : relIsOutOfStock ? (
+                            '缺货'
                           ) : !relLimit.allowed ? (
                             '已达上限'
                           ) : (
@@ -348,11 +402,13 @@ export default function ProductDetailModal() {
             <div className="flex items-center gap-3">
               <button
                 onClick={handleAdd}
-                disabled={!product.inStock || added || (!limit.allowed && !!limit.limit)}
+                disabled={isOutOfStock || added || (!limit.allowed && !!limit.limit)}
                 className={clsx(
                   'flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-semibold transition-all',
                   added
                     ? 'bg-emerald-500 text-white rounded-full shadow-lg shadow-emerald-500/30'
+                    : isOutOfStock
+                    ? 'bg-slate-700/50 text-slate-400 rounded-full cursor-not-allowed'
                     : 'btn-customer'
                 )}
               >
@@ -360,6 +416,11 @@ export default function ProductDetailModal() {
                   <>
                     <Plus className="w-5 h-5" />
                     已加入购物车
+                  </>
+                ) : isOutOfStock ? (
+                  <>
+                    <AlertCircle className="w-4.5 h-4.5" />
+                    暂时缺货
                   </>
                 ) : (
                   <>
@@ -371,7 +432,13 @@ export default function ProductDetailModal() {
               {isPhoneBound && (
                 <button
                   onClick={handleAdd}
-                  className="btn-admin-ghost px-5 py-3.5 text-sm font-medium"
+                  disabled={isOutOfStock}
+                  className={clsx(
+                    'px-5 py-3.5 text-sm font-medium transition-all',
+                    isOutOfStock
+                      ? 'bg-slate-700/50 text-slate-400 rounded-full cursor-not-allowed'
+                      : 'btn-admin-ghost'
+                  )}
                 >
                   同步手机
                 </button>
