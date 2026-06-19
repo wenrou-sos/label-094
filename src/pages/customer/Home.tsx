@@ -86,37 +86,94 @@ export default function CustomerHome() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const { visibleProductIds, priceOverrides, activeStrategies } = activeResult;
+  const visibleProducts = products.filter(p => visibleProductIds.includes(p.id));
+  const categoryFilteredProducts = activeCategory === 'all'
+    ? visibleProducts
+    : visibleProducts.filter(p => p.category === activeCategory);
+  const groupedByShelf = categoryFilteredProducts.reduce<Record<string, typeof products>>((acc, p) => {
+    if (!acc[p.shelfId]) acc[p.shelfId] = [];
+    acc[p.shelfId].push(p);
+    return acc;
+  }, {});
+
+  const availableShelfIds = useMemo(
+    () => Object.keys(groupedByShelf).sort(),
+    [groupedByShelf]
+  );
+
+  useEffect(() => {
+    if (activeShelfTab === 'all') return;
+    if (!groupedByShelf[activeShelfTab] || groupedByShelf[activeShelfTab].length === 0) {
+      setActiveShelfTab('all');
+    }
+  }, [activeShelfTab, availableShelfIds]);
+
   useEffect(() => {
     const shelfIds = ['shelf_a', 'shelf_b', 'shelf_c', 'shelf_d'];
     const observers: IntersectionObserver[] = [];
+    let rebindTimer: ReturnType<typeof setTimeout> | null = null;
 
-    shelfIds.forEach(shelfId => {
-      const el = shelfSectionRefs.current[shelfId];
-      if (!el) return;
+    const bindObservers = () => {
+      observers.forEach(o => o.disconnect());
+      observers.length = 0;
 
-      const observer = new IntersectionObserver(
-        (entries) => {
-          if (isClickScrollRef.current) return;
-          entries.forEach(entry => {
-            if (entry.isIntersecting && entry.intersectionRatio >= 0.2) {
-              setActiveShelfTab(shelfId);
-            }
-          });
-        },
-        {
-          root: null,
-          rootMargin: '-120px 0px -60% 0px',
-          threshold: [0, 0.2, 0.5, 0.8, 1]
-        }
-      );
-      observer.observe(el);
-      observers.push(observer);
-    });
+      const productListStart = document.getElementById('product-list-start');
+      if (productListStart) {
+        const topObserver = new IntersectionObserver(
+          (entries) => {
+            if (isClickScrollRef.current) return;
+            entries.forEach(entry => {
+              if (entry.isIntersecting && entry.intersectionRatio >= 0.35) {
+                setActiveShelfTab('all');
+              }
+            });
+          },
+          {
+            root: null,
+            rootMargin: '-80px 0px -65% 0px',
+            threshold: [0, 0.2, 0.35, 0.5, 0.8, 1]
+          }
+        );
+        topObserver.observe(productListStart);
+        observers.push(topObserver);
+      }
+
+      shelfIds.forEach(shelfId => {
+        const el = shelfSectionRefs.current[shelfId];
+        if (!el) return;
+
+        const observer = new IntersectionObserver(
+          (entries) => {
+            if (isClickScrollRef.current) return;
+            entries.forEach(entry => {
+              if (entry.isIntersecting && entry.intersectionRatio >= 0.2) {
+                setActiveShelfTab(prev => {
+                  if (prev === 'all') return shelfId;
+                  return shelfId;
+                });
+              }
+            });
+          },
+          {
+            root: null,
+            rootMargin: '-120px 0px -60% 0px',
+            threshold: [0, 0.2, 0.5, 0.8, 1]
+          }
+        );
+        observer.observe(el);
+        observers.push(observer);
+      });
+    };
+
+    bindObservers();
+    rebindTimer = setTimeout(bindObservers, 50);
 
     return () => {
+      if (rebindTimer) clearTimeout(rebindTimer);
       observers.forEach(o => o.disconnect());
     };
-  }, []);
+  }, [availableShelfIds, isTransitioning]);
 
   const scrollToShelf = useCallback((shelfId: string | null) => {
     if (shelfId === null) {
@@ -144,17 +201,6 @@ export default function CustomerHome() {
       }, 1000);
     }
   }, []);
-
-  const { visibleProductIds, priceOverrides, activeStrategies } = activeResult;
-  const visibleProducts = products.filter(p => visibleProductIds.includes(p.id));
-  const categoryFilteredProducts = activeCategory === 'all'
-    ? visibleProducts
-    : visibleProducts.filter(p => p.category === activeCategory);
-  const groupedByShelf = categoryFilteredProducts.reduce<Record<string, typeof products>>((acc, p) => {
-    if (!acc[p.shelfId]) acc[p.shelfId] = [];
-    acc[p.shelfId].push(p);
-    return acc;
-  }, {});
 
   const currentHour = getCurrentHour();
 
