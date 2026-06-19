@@ -2,15 +2,23 @@ import CustomerNavBar from '@/components/shared/CustomerNavBar';
 import QRCodePanel from '@/components/customer/QRCodePanel';
 import SensorIndicator from '@/components/customer/SensorIndicator';
 import ProductDetailModal from '@/components/customer/ProductDetailModal';
-import { Sparkles, Shield, Clock, MapPin, ArrowRight, Users, ShoppingCart, BadgePercent, Filter, AlertCircle, Eye } from 'lucide-react';
+import { Sparkles, Shield, Clock, MapPin, ArrowRight, Users, ShoppingCart, BadgePercent, Filter, AlertCircle, Eye, ChevronDown } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
 import { formatCurrency } from '@/utils/formatters';
 import { shelfInfo } from '@/data/products';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { getCurrentHour, formatTimeRange, beginnerPriceThreshold } from '@/utils/strategyUtils';
 import type { AppliedStrategyResult } from '@/types';
+
+const SHELF_TABS = [
+  { id: 'all', label: '全部', shelfId: null },
+  { id: 'shelf_a', label: 'A区 · 护理', shelfId: 'shelf_a' },
+  { id: 'shelf_b', label: 'B区 · 男士', shelfId: 'shelf_b' },
+  { id: 'shelf_c', label: 'C区 · 情侣', shelfId: 'shelf_c' },
+  { id: 'shelf_d', label: 'D区 · 周边', shelfId: 'shelf_d' },
+];
 
 export default function CustomerHome() {
   const cart = useAppStore(s => s.cart);
@@ -27,6 +35,20 @@ export default function CustomerHome() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const prevIdsRef = useRef<string>('');
+
+  const [activeShelfTab, setActiveShelfTab] = useState<string>('all');
+  const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const shelfSectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const categoryDropdownRef = useRef<HTMLDivElement | null>(null);
+  const isClickScrollRef = useRef(false);
+  const clickScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const allCategories = useMemo(() => {
+    const cats = new Set<string>();
+    products.forEach(p => cats.add(p.category));
+    return Array.from(cats);
+  }, [products]);
 
   useEffect(() => {
     const update = () => {
@@ -54,9 +76,81 @@ export default function CustomerHome() {
     return () => clearInterval(t);
   }, [getActiveStrategies]);
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target as Node)) {
+        setCategoryDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const shelfIds = ['shelf_a', 'shelf_b', 'shelf_c', 'shelf_d'];
+    const observers: IntersectionObserver[] = [];
+
+    shelfIds.forEach(shelfId => {
+      const el = shelfSectionRefs.current[shelfId];
+      if (!el) return;
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (isClickScrollRef.current) return;
+          entries.forEach(entry => {
+            if (entry.isIntersecting && entry.intersectionRatio >= 0.2) {
+              setActiveShelfTab(shelfId);
+            }
+          });
+        },
+        {
+          root: null,
+          rootMargin: '-120px 0px -60% 0px',
+          threshold: [0, 0.2, 0.5, 0.8, 1]
+        }
+      );
+      observer.observe(el);
+      observers.push(observer);
+    });
+
+    return () => {
+      observers.forEach(o => o.disconnect());
+    };
+  }, []);
+
+  const scrollToShelf = useCallback((shelfId: string | null) => {
+    if (shelfId === null) {
+      setActiveShelfTab('all');
+      const firstSection = document.getElementById('product-list-start');
+      if (firstSection) {
+        isClickScrollRef.current = true;
+        firstSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (clickScrollTimerRef.current) clearTimeout(clickScrollTimerRef.current);
+        clickScrollTimerRef.current = setTimeout(() => {
+          isClickScrollRef.current = false;
+        }, 1000);
+      }
+      return;
+    }
+
+    setActiveShelfTab(shelfId);
+    const el = shelfSectionRefs.current[shelfId];
+    if (el) {
+      isClickScrollRef.current = true;
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (clickScrollTimerRef.current) clearTimeout(clickScrollTimerRef.current);
+      clickScrollTimerRef.current = setTimeout(() => {
+        isClickScrollRef.current = false;
+      }, 1000);
+    }
+  }, []);
+
   const { visibleProductIds, priceOverrides, activeStrategies } = activeResult;
   const visibleProducts = products.filter(p => visibleProductIds.includes(p.id));
-  const groupedByShelf = visibleProducts.reduce<Record<string, typeof products>>((acc, p) => {
+  const categoryFilteredProducts = activeCategory === 'all'
+    ? visibleProducts
+    : visibleProducts.filter(p => p.category === activeCategory);
+  const groupedByShelf = categoryFilteredProducts.reduce<Record<string, typeof products>>((acc, p) => {
     if (!acc[p.shelfId]) acc[p.shelfId] = [];
     acc[p.shelfId].push(p);
     return acc;
@@ -229,7 +323,7 @@ export default function CustomerHome() {
           <SensorIndicator />
         </div>
 
-        <section>
+        <section id="product-list-start">
           <div className="flex items-center justify-between mb-5">
             <div>
               <h2 className="customer-font-display text-2xl font-bold text-white flex items-center gap-3">
@@ -237,11 +331,17 @@ export default function CustomerHome() {
                 商品列表
               </h2>
               <p className="text-sm text-fuchsia-300/60 mt-1">
-                共 {visibleProducts.length} 款商品可浏览
+                共 {categoryFilteredProducts.length} 款商品可浏览
                 {visibleProducts.length < products.length && (
                   <span className="ml-2 inline-flex items-center gap-1">
                     <Filter className="w-3 h-3" />
                     已按时段策略过滤 {products.length - visibleProducts.length} 款
+                  </span>
+                )}
+                {activeCategory !== 'all' && (
+                  <span className="ml-2 inline-flex items-center gap-1">
+                    <Filter className="w-3 h-3" />
+                    当前类别：{activeCategory}
                   </span>
                 )}
               </p>
@@ -254,19 +354,101 @@ export default function CustomerHome() {
             )}
           </div>
 
+          <div className="sticky top-[72px] z-40 -mx-8 px-8 py-3 mb-2 backdrop-blur-xl bg-gradient-to-b from-[#1a0b2e]/95 via-[#1a0b2e]/90 to-transparent border-b border-fuchsia-500/10">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="glass-customer rounded-xl p-1 flex items-center gap-1 flex-wrap">
+                {SHELF_TABS.map(tab => {
+                  const shelfHasProducts = tab.shelfId === null
+                    ? categoryFilteredProducts.length > 0
+                    : (groupedByShelf[tab.shelfId]?.length ?? 0) > 0;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => scrollToShelf(tab.shelfId)}
+                      className={clsx(
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap',
+                        activeShelfTab === tab.id || (tab.id === 'all' && activeShelfTab === 'all')
+                          ? 'bg-gradient-to-r from-fuchsia-500/30 to-violet-500/30 text-fuchsia-200 shadow-inner border border-fuchsia-400/30'
+                          : shelfHasProducts
+                            ? 'text-fuchsia-300/60 hover:text-fuchsia-200 hover:bg-white/5'
+                            : 'text-slate-500/50 cursor-not-allowed'
+                      )}
+                      disabled={!shelfHasProducts}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div ref={categoryDropdownRef} className="relative">
+                <button
+                  onClick={() => setCategoryDropdownOpen(v => !v)}
+                  className="glass-customer flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium text-fuchsia-200 hover:bg-white/5 transition-all border border-fuchsia-500/20"
+                >
+                  <Filter className="w-3.5 h-3.5 text-fuchsia-300" />
+                  {activeCategory === 'all' ? '全部类别' : activeCategory}
+                  <ChevronDown className={clsx(
+                    'w-3.5 h-3.5 text-fuchsia-300/70 transition-transform',
+                    categoryDropdownOpen && 'rotate-180'
+                  )} />
+                </button>
+                {categoryDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-44 glass-customer rounded-xl overflow-hidden border border-fuchsia-500/20 shadow-2xl shadow-fuchsia-500/10 z-50 animate-fade-in">
+                    <button
+                      onClick={() => { setActiveCategory('all'); setCategoryDropdownOpen(false); }}
+                      className={clsx(
+                        'w-full text-left px-3 py-2 text-xs transition-all',
+                        activeCategory === 'all'
+                          ? 'bg-fuchsia-500/20 text-fuchsia-200'
+                          : 'text-fuchsia-300/70 hover:bg-white/5 hover:text-fuchsia-200'
+                      )}
+                    >
+                      全部类别
+                    </button>
+                    {allCategories.map(cat => (
+                      <button
+                        key={cat}
+                        onClick={() => { setActiveCategory(cat); setCategoryDropdownOpen(false); }}
+                        className={clsx(
+                          'w-full text-left px-3 py-2 text-xs transition-all border-t border-white/5',
+                          activeCategory === cat
+                            ? 'bg-fuchsia-500/20 text-fuchsia-200'
+                            : 'text-fuchsia-300/70 hover:bg-white/5 hover:text-fuchsia-200'
+                        )}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className={`transition-all duration-500 ${isTransitioning ? 'opacity-40 scale-[0.99] blur-sm' : 'opacity-100'}`}>
             {Object.keys(groupedByShelf).length === 0 ? (
               <div className="glass-customer rounded-2xl p-16 text-center">
                 <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-fuchsia-500/10 flex items-center justify-center">
                   <Filter className="w-8 h-8 text-fuchsia-400" />
                 </div>
-                <p className="text-fuchsia-200 font-medium mb-1">当前时段无展示商品</p>
-                <p className="text-sm text-fuchsia-300/50">深夜时段仅展示入门级商品（≤¥{beginnerPriceThreshold}），请稍后再来</p>
+                <p className="text-fuchsia-200 font-medium mb-1">
+                  {activeCategory === 'all' ? '当前时段无展示商品' : `「${activeCategory}」类别暂无商品`}
+                </p>
+                <p className="text-sm text-fuchsia-300/50">
+                  {activeCategory === 'all'
+                    ? `深夜时段仅展示入门级商品（≤¥${beginnerPriceThreshold}），请稍后再来`
+                    : '请尝试选择其他商品类别'}
+                </p>
               </div>
             ) : (
               <div className="space-y-8">
                 {Object.entries(groupedByShelf).map(([shelfId, shelfProducts]) => (
-                  <div key={shelfId} className="space-y-4">
+                  <div
+                    key={shelfId}
+                    ref={el => { shelfSectionRefs.current[shelfId] = el; }}
+                    className="space-y-4 scroll-mt-[140px]"
+                  >
                     <div className="flex items-center gap-3">
                       <div className="w-1 h-6 rounded-full bg-gradient-to-b from-fuchsia-400 to-violet-500" />
                       <h3 className="text-base font-semibold text-fuchsia-100">{shelfInfo[shelfId] || shelfId}</h3>
