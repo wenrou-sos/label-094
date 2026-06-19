@@ -168,18 +168,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
   }),
 
-  clearCart: () => set(state => {
+  clearCart: (restoreStock = true) => set(state => {
     if (!state.cart) return state;
-    const newProducts = state.products.map(p => {
-      const cartItem = state.cart!.items.find(it => it.productId === p.id);
-      if (cartItem) {
-        return { ...p, stock: p.stock + cartItem.quantity, inStock: true };
-      }
-      return p;
-    });
+    if (restoreStock) {
+      const newProducts = state.products.map(p => {
+        const cartItem = state.cart!.items.find(it => it.productId === p.id);
+        if (cartItem) {
+          return { ...p, stock: p.stock + cartItem.quantity, inStock: true };
+        }
+        return p;
+      });
+      return {
+        cart: { ...state.cart, items: [], updatedAt: Date.now() },
+        products: newProducts
+      };
+    }
     return {
-      cart: { ...state.cart, items: [], updatedAt: Date.now() },
-      products: newProducts
+      cart: { ...state.cart, items: [], updatedAt: Date.now() }
     };
   }),
 

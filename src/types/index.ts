@@ -148,7 +148,7 @@ export interface AppState {
   addToCart: (productId: string, quantity?: number) => void;
   removeFromCart: (productId: string) => void;
   updateCartQuantity: (productId: string, quantity: number) => void;
-  clearCart: () => void;
+  clearCart: (restoreStock?: boolean) => void;
   createOrder: () => Order;
   simulatePayment: (orderId: string, method: 'wechat' | 'alipay') => Promise<boolean>;
   clearReceipt: () => void;

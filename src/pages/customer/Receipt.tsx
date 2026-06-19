@@ -153,7 +153,7 @@ export default function CustomerReceipt() {
   const handleLeave = () => {
     clearedRef.current = true;
     clearReceipt();
-    clearCart();
+    clearCart(false);
     navigate('/');
   };
 

@@ -296,34 +296,37 @@ export default function AdminAnalytics() {
                         </div>
                       </td>
                       <td className="px-5 py-3 text-right">
-                        <button
-                          onClick={handleRestockClick}
-                          disabled={isRestocking || stock >= maxStock}
-                          className={clsx(
-                            'inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all',
-                            stock >= maxStock
-                              ? 'bg-slate-700/30 text-slate-500 cursor-not-allowed'
-                              : isOutOfStock
-                              ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30 hover:bg-rose-500/25'
-                              : isLowStock
-                              ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25'
-                              : 'bg-sky-500/15 text-sky-300 border border-sky-500/30 hover:bg-sky-500/25'
-                          )}
-                        >
-                          {isRestocking ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              补货中...
-                            </>
-                          ) : stock >= maxStock ? (
-                            '库存已满'
-                          ) : (
-                            <>
-                              <RefreshCw className="w-3.5 h-3.5" />
-                              建议补货
-                            </>
-                          )}
-                        </button>
+                        {(isOutOfStock || isLowStock) && (
+                          <button
+                            onClick={handleRestockClick}
+                            disabled={isRestocking || stock >= maxStock}
+                            className={clsx(
+                              'inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all',
+                              stock >= maxStock
+                                ? 'bg-slate-700/30 text-slate-500 cursor-not-allowed'
+                                : isOutOfStock
+                                ? 'bg-rose-500/15 text-rose-300 border border-rose-500/30 hover:bg-rose-500/25'
+                                : 'bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25'
+                            )}
+                          >
+                            {isRestocking ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                补货中...
+                              </>
+                            ) : stock >= maxStock ? (
+                              '库存已满'
+                            ) : (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                建议补货
+                              </>
+                            )}
+                          </button>
+                        )}
+                        {!isOutOfStock && !isLowStock && stock < maxStock && (
+                          <span className="text-[10px] text-slate-500">库存正常</span>
+                        )}
                       </td>
                     </tr>
                   );

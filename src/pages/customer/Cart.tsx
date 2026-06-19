@@ -84,7 +84,7 @@ export default function CustomerCart() {
           </div>
           {items.length > 0 && (
             <button
-              onClick={clear}
+              onClick={() => clear()}
               className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs text-rose-300/70 hover:text-rose-200 hover:bg-rose-500/10 border border-rose-500/20 transition-all"
             >
               <Trash2 className="w-3.5 h-3.5" /> 清空购物车
