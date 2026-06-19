@@ -36,21 +36,28 @@ export default function AdminDashboard() {
     return () => clearInterval(t);
   }, [refresh]);
 
+  const currentCustomers = compareScope === 'day' ? metrics.todayCustomers : metrics.weekCustomers;
+  const currentRevenue = compareScope === 'day' ? metrics.todayRevenue : metrics.weekRevenue;
+
   const comparisons = useMemo(() => {
     const cd = comparisonData;
     const scopeDay = compareScope === 'day';
+    const baseCustomers = scopeDay ? metrics.todayCustomers : metrics.weekCustomers;
+    const baseRevenue = scopeDay ? metrics.todayRevenue : metrics.weekRevenue;
+    const prevCustomers = scopeDay ? cd.yesterdayCustomers : cd.lastWeekCustomers;
+    const prevRevenue = scopeDay ? cd.yesterdayRevenue : cd.lastWeekRevenue;
     return {
       customers: {
-        dayChange: calcChange(metrics.todayCustomers, cd.yesterdayCustomers),
-        dayLabel: formatNumber(cd.yesterdayCustomers) + ' 人',
-        weekChange: calcChange(metrics.todayCustomers, cd.lastWeekCustomers / 7),
-        weekLabel: formatNumber(Math.round(cd.lastWeekCustomers / 7)) + ' 人/日'
+        dayChange: calcChange(baseCustomers, prevCustomers),
+        dayLabel: formatNumber(prevCustomers) + ' 人',
+        weekChange: calcChange(baseCustomers, cd.lastWeekCustomers),
+        weekLabel: formatNumber(cd.lastWeekCustomers) + ' 人'
       },
       revenue: {
-        dayChange: calcChange(metrics.todayRevenue, cd.yesterdayRevenue),
-        dayLabel: formatCurrency(cd.yesterdayRevenue),
-        weekChange: calcChange(metrics.todayRevenue, cd.lastWeekRevenue / 7),
-        weekLabel: formatCurrency(Math.round(cd.lastWeekRevenue / 7))
+        dayChange: calcChange(baseRevenue, prevRevenue),
+        dayLabel: formatCurrency(prevRevenue),
+        weekChange: calcChange(baseRevenue, cd.lastWeekRevenue),
+        weekLabel: formatCurrency(cd.lastWeekRevenue)
       },
       pickupRate: {
         dayChange: calcChange(metrics.overallPickupRate, cd.yesterdayPickupRate),
@@ -104,6 +111,21 @@ export default function AdminDashboard() {
       yesterdayRevenue: yesterday[i]?.revenue ?? 0
     }));
   }, [comparisonData]);
+
+  const weeklyData = useMemo(() => {
+    const thisWeek = comparisonData.thisWeekDailyData;
+    const lastWeek = comparisonData.lastWeekDailyData;
+    return thisWeek.map((t, i) => ({
+      day: t.date,
+      label: t.weekday,
+      todayCustomers: t.customers,
+      todayRevenue: t.revenue,
+      yesterdayCustomers: lastWeek[i]?.customers ?? 0,
+      yesterdayRevenue: lastWeek[i]?.revenue ?? 0
+    }));
+  }, [comparisonData]);
+
+  const trendData = compareScope === 'day' ? hourlyData : weeklyData;
 
   const topPicks = [...behaviors]
     .sort((a, b) => b.pickupCount - a.pickupCount)
@@ -201,18 +223,19 @@ export default function AdminDashboard() {
 
         <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-4">
           <MetricCard
-            title="今日客流量"
-            value={metrics.todayCustomers}
+            title={compareScope === 'day' ? '今日客流量' : '本周客流量'}
+            value={compareScope === 'day' ? metrics.todayCustomers : metrics.weekCustomers}
             icon={Users}
             trend={compareMode === 'realtime' ? 6.8 : undefined}
             accent="sky"
             subtitle="进店总人次"
             showCompare={compareMode === 'compare'}
             comparison={comparisons.customers}
+            compareScope={compareScope}
           />
           <MetricCard
-            title="今日销售额"
-            value={metrics.todayRevenue}
+            title={compareScope === 'day' ? '今日销售额' : '本周销售额'}
+            value={compareScope === 'day' ? metrics.todayRevenue : metrics.weekRevenue}
             format="currency"
             icon={DollarSign}
             trend={compareMode === 'realtime' ? 12.3 : undefined}
@@ -220,6 +243,7 @@ export default function AdminDashboard() {
             subtitle="累计成交"
             showCompare={compareMode === 'compare'}
             comparison={comparisons.revenue}
+            compareScope={compareScope}
           />
           <MetricCard
             title="商品拿取率"
@@ -231,6 +255,7 @@ export default function AdminDashboard() {
             subtitle="进店→拿取"
             showCompare={compareMode === 'compare'}
             comparison={comparisons.pickupRate}
+            compareScope={compareScope}
           />
           <MetricCard
             title="成交转化率"
@@ -242,6 +267,7 @@ export default function AdminDashboard() {
             subtitle="拿取→购买"
             showCompare={compareMode === 'compare'}
             comparison={comparisons.conversionRate}
+            compareScope={compareScope}
           />
           <MetricCard
             title="平均客单价"
@@ -253,6 +279,7 @@ export default function AdminDashboard() {
             subtitle="单笔消费"
             showCompare={compareMode === 'compare'}
             comparison={comparisons.avgOrder}
+            compareScope={compareScope}
           />
         </div>
 
@@ -443,31 +470,37 @@ export default function AdminDashboard() {
         <div className="glass-admin rounded-xl p-5 space-y-3">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
-              <h3 className="text-sm font-semibold text-slate-100">24小时客流 & 销售额趋势</h3>
+              <h3 className="text-sm font-semibold text-slate-100">
+                {compareScope === 'day' ? '24小时客流 & 销售额趋势' : '本周客流 & 销售额趋势'}
+              </h3>
               <p className="text-[11px] text-slate-500 mt-0.5">
                 {compareMode === 'compare'
-                  ? `今日（实线）vs 昨日（虚线）分时段对比`
-                  : '今日分时段客流与销售额变化'}
+                  ? compareScope === 'day'
+                    ? `今日（实线）vs 昨日（虚线）分时段对比`
+                    : `本周（实线）vs 上周（虚线）逐日对比`
+                  : compareScope === 'day'
+                    ? '今日分时段客流与销售额变化'
+                    : '本周逐日客流与销售额变化'}
               </p>
             </div>
             <div className="flex items-center gap-3 text-[10px] flex-wrap">
               <span className="flex items-center gap-1 text-sky-300">
                 <span className="w-5 h-0.5 bg-sky-400 rounded" />
-                今日客流
+                {compareScope === 'day' ? '今日客流' : '本周客流'}
               </span>
               <span className="flex items-center gap-1 text-emerald-300">
                 <span className="w-5 h-0.5 bg-emerald-400 rounded" />
-                今日销售额
+                {compareScope === 'day' ? '今日销售额' : '本周销售额'}
               </span>
               {compareMode === 'compare' && (
                 <>
                   <span className="flex items-center gap-1 text-sky-400/60">
                     <span className="w-5 h-0.5 border-t-2 border-dashed border-sky-400/60 rounded" />
-                    昨日客流
+                    {compareScope === 'day' ? '昨日客流' : '上周客流'}
                   </span>
                   <span className="flex items-center gap-1 text-emerald-400/60">
                     <span className="w-5 h-0.5 border-t-2 border-dashed border-emerald-400/60 rounded" />
-                    昨日销售额
+                    {compareScope === 'day' ? '昨日销售额' : '上周销售额'}
                   </span>
                 </>
               )}
@@ -475,7 +508,7 @@ export default function AdminDashboard() {
           </div>
           <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
-              <ReLineChart data={hourlyData}>
+              <ReLineChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                 <XAxis
                   dataKey="label"
@@ -483,7 +516,7 @@ export default function AdminDashboard() {
                   fontSize={10}
                   tickLine={false}
                   axisLine={false}
-                  interval={1}
+                  interval={compareScope === 'day' ? 1 : 0}
                 />
                 <YAxis
                   yAxisId="left"
@@ -506,11 +539,12 @@ export default function AdminDashboard() {
                 <Tooltip
                   contentStyle={{ background: '#0F172A', border: '1px solid #1E293B', borderRadius: '8px', fontSize: '12px' }}
                   formatter={(v: any, name: any) => {
+                    const scopeDay = compareScope === 'day';
                     const map: Record<string, string> = {
-                      todayCustomers: '今日客流',
-                      todayRevenue: '今日销售额',
-                      yesterdayCustomers: '昨日客流',
-                      yesterdayRevenue: '昨日销售额'
+                      todayCustomers: scopeDay ? '今日客流' : '本周客流',
+                      todayRevenue: scopeDay ? '今日销售额' : '本周销售额',
+                      yesterdayCustomers: scopeDay ? '昨日客流' : '上周客流',
+                      yesterdayRevenue: scopeDay ? '昨日销售额' : '上周销售额'
                     };
                     const isRevenue = name.includes('Revenue');
                     return [isRevenue ? formatCurrency(v) : `${v} 人`, map[name] || name];

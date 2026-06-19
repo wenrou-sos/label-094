@@ -270,6 +270,8 @@ export const useAppStore = create<AppState>((set, get) => ({
             ...state.realtimeMetrics,
             todayCustomers: state.realtimeMetrics.todayCustomers + 1,
             todayRevenue: state.realtimeMetrics.todayRevenue + (state.currentOrder?.finalAmount || 0),
+            weekCustomers: state.realtimeMetrics.weekCustomers + 1,
+            weekRevenue: state.realtimeMetrics.weekRevenue + (state.currentOrder?.finalAmount || 0),
             lastUpdated: Date.now()
           }
         };

@@ -83,6 +83,8 @@ export interface ShelfMonitor {
 export interface RealtimeMetrics {
   todayCustomers: number;
   todayRevenue: number;
+  weekCustomers: number;
+  weekRevenue: number;
   overallPickupRate: number;
   overallConversionRate: number;
   avgOrderValue: number;
@@ -105,12 +107,22 @@ export interface ComparisonData {
   yesterdayHourlyData: HourlyData[];
   todayHourlyData: HourlyData[];
 
+  thisWeekDailyData: DailyData[];
+  lastWeekDailyData: DailyData[];
+
   yesterdayShelves: ShelfMonitor[];
   lastWeekShelves: ShelfMonitor[];
 }
 
 export interface HourlyData {
   hour: number;
+  customers: number;
+  revenue: number;
+}
+
+export interface DailyData {
+  date: string;
+  weekday: string;
   customers: number;
   revenue: number;
 }

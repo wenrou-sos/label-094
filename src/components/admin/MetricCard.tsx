@@ -20,11 +20,12 @@ interface Props {
   subtitle?: string;
   showCompare?: boolean;
   comparison?: ComparisonTrend;
+  compareScope?: 'day' | 'week';
 }
 
 export default function MetricCard({
   title, value, format = 'number', icon: Icon,
-  trend, accent, subtitle, showCompare, comparison
+  trend, accent, subtitle, showCompare, comparison, compareScope = 'day'
 }: Props) {
   const displayVal = format === 'percent'
     ? formatPercent(value)
@@ -69,34 +70,37 @@ export default function MetricCard({
 
       {showCompare && comparison ? (
         <div className="space-y-1.5">
-          <div className="flex items-center gap-2 text-[11px]">
-            <span className={clsx(
-              'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded',
-              comparison.dayChange >= 0
-                ? 'bg-emerald-500/15 text-emerald-400'
-                : 'bg-rose-500/15 text-rose-400'
-            )}>
-              {comparison.dayChange >= 0
-                ? <TrendingUp className="w-3 h-3" />
-                : <TrendingDown className="w-3 h-3" />}
-              {Math.abs(comparison.dayChange).toFixed(1)}%
-            </span>
-            <span className="text-slate-500">vs 昨日 · {comparison.dayLabel}</span>
-          </div>
-          <div className="flex items-center gap-2 text-[11px]">
-            <span className={clsx(
-              'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded',
-              comparison.weekChange >= 0
-                ? 'bg-sky-500/15 text-sky-400'
-                : 'bg-orange-500/15 text-orange-400'
-            )}>
-              {comparison.weekChange >= 0
-                ? <TrendingUp className="w-3 h-3" />
-                : <TrendingDown className="w-3 h-3" />}
-              {Math.abs(comparison.weekChange).toFixed(1)}%
-            </span>
-            <span className="text-slate-500">vs 上周 · {comparison.weekLabel}</span>
-          </div>
+          {compareScope === 'day' ? (
+            <div className="flex items-center gap-2 text-[11px]">
+              <span className={clsx(
+                'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded',
+                comparison.dayChange >= 0
+                  ? 'bg-emerald-500/15 text-emerald-400'
+                  : 'bg-rose-500/15 text-rose-400'
+              )}>
+                {comparison.dayChange >= 0
+                  ? <TrendingUp className="w-3 h-3" />
+                  : <TrendingDown className="w-3 h-3" />}
+                {Math.abs(comparison.dayChange).toFixed(1)}%
+              </span>
+              <span className="text-slate-500">vs 昨日 · {comparison.dayLabel}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-[11px]">
+              <span className={clsx(
+                'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded',
+                comparison.weekChange >= 0
+                  ? 'bg-sky-500/15 text-sky-400'
+                  : 'bg-orange-500/15 text-orange-400'
+              )}>
+                {comparison.weekChange >= 0
+                  ? <TrendingUp className="w-3 h-3" />
+                  : <TrendingDown className="w-3 h-3" />}
+                {Math.abs(comparison.weekChange).toFixed(1)}%
+              </span>
+              <span className="text-slate-500">vs 上周 · {comparison.weekLabel}</span>
+            </div>
+          )}
         </div>
       ) : trend !== undefined && (
         <div className="flex items-center gap-1.5 text-xs">

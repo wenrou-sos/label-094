@@ -1,4 +1,4 @@
-import type { ProductBehavior, ShelfMonitor, RealtimeMetrics, HeatmapData, HourlyData, Product, Order, CartItem, ComparisonData } from '@/types';
+import type { ProductBehavior, ShelfMonitor, RealtimeMetrics, HeatmapData, HourlyData, DailyData, Product, Order, CartItem, ComparisonData } from '@/types';
 import { products, shelfInfo } from './products';
 import { randomInt, randomFloat, clamp, normalRandom, randomPick, generateOrderId, generateSessionId } from '@/utils/randomUtils';
 import { formatDate, getWeekday } from '@/utils/formatters';
@@ -44,18 +44,44 @@ export function generateShelfMonitors(): ShelfMonitor[] {
   });
 }
 
-export function generateRealtimeMetrics(): RealtimeMetrics {
-  const todayCustomers = Math.floor(clamp(normalRandom(180, 80), 30, 500));
+function generateDailyData(date: Date, baseFactor = 1): DailyData {
+  const dayOfWeek = date.getDay();
+  const weekendFactor = (dayOfWeek === 0 || dayOfWeek === 6) ? 1.3 : 1;
+  const customers = Math.floor(clamp(normalRandom(180, 80), 30, 500) * baseFactor * weekendFactor);
   const avgOrderValue = parseFloat(clamp(normalRandom(420, 120), 100, 980).toFixed(2));
   const conversionRate = clamp(normalRandom(0.48, 0.12), 0.18, 0.72);
-  const orders = Math.floor(todayCustomers * conversionRate);
+  const orders = Math.floor(customers * conversionRate);
 
   return {
-    todayCustomers,
-    todayRevenue: Math.floor(orders * avgOrderValue),
+    date: formatDate(date),
+    weekday: getWeekday(date),
+    customers,
+    revenue: Math.floor(orders * avgOrderValue)
+  };
+}
+
+export function generateRealtimeMetrics(): RealtimeMetrics {
+  const today = new Date();
+  const todayData = generateDailyData(today);
+
+  let weekCustomers = 0;
+  let weekRevenue = 0;
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const daily = generateDailyData(d, i === 0 ? 1 : clamp(normalRandom(0.95, 0.1), 0.7, 1.2));
+    weekCustomers += daily.customers;
+    weekRevenue += daily.revenue;
+  }
+
+  return {
+    todayCustomers: todayData.customers,
+    todayRevenue: todayData.revenue,
+    weekCustomers,
+    weekRevenue,
     overallPickupRate: parseFloat(clamp(normalRandom(0.72, 0.1), 0.4, 0.95).toFixed(3)),
-    overallConversionRate: parseFloat(conversionRate.toFixed(3)),
-    avgOrderValue,
+    overallConversionRate: parseFloat(clamp(normalRandom(0.48, 0.12), 0.18, 0.72).toFixed(3)),
+    avgOrderValue: parseFloat(clamp(normalRandom(420, 120), 100, 980).toFixed(2)),
     lastUpdated: Date.now()
   };
 }
@@ -127,11 +153,15 @@ export function pickRandomProduct(): Product {
 export function addDeltaToMetrics(prev: RealtimeMetrics): RealtimeMetrics {
   const deltaCustomers = randomInt(0, 6);
   const deltaRevenue = randomInt(0, 3000);
+  const weekDeltaCustomers = randomInt(0, 6);
+  const weekDeltaRevenue = randomInt(0, 3000);
   const fluctuation = () => randomFloat(-0.01, 0.01);
 
   return {
     todayCustomers: prev.todayCustomers + deltaCustomers,
     todayRevenue: prev.todayRevenue + deltaRevenue,
+    weekCustomers: prev.weekCustomers + weekDeltaCustomers,
+    weekRevenue: prev.weekRevenue + weekDeltaRevenue,
     overallPickupRate: parseFloat(clamp(prev.overallPickupRate + fluctuation(), 0.3, 0.95).toFixed(3)),
     overallConversionRate: parseFloat(clamp(prev.overallConversionRate + fluctuation(), 0.15, 0.75).toFixed(3)),
     avgOrderValue: parseFloat(clamp(prev.avgOrderValue + randomFloat(-15, 15), 100, 900).toFixed(2)),
@@ -158,6 +188,7 @@ export function addDeltaToBehaviors(prev: ProductBehavior[]): ProductBehavior[] 
 
 export function generateComparisonData(): ComparisonData {
   const todayMetrics = generateRealtimeMetrics();
+  const today = new Date();
 
   const yesterdayFactor = clamp(normalRandom(0.92, 0.12), 0.6, 1.25);
   const lastWeekFactor = clamp(normalRandom(0.97, 0.08), 0.7, 1.3);
@@ -185,6 +216,19 @@ export function generateComparisonData(): ComparisonData {
     });
   }
 
+  const thisWeekDaily: DailyData[] = [];
+  const lastWeekDaily: DailyData[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    thisWeekDaily.push(generateDailyData(d));
+
+    const ld = new Date(today);
+    ld.setDate(ld.getDate() - i - 7);
+    const lwFactor = clamp(normalRandom(0.95, 0.1), 0.7, 1.25);
+    lastWeekDaily.push(generateDailyData(ld, lwFactor));
+  }
+
   const yesterdayShelves = generateShelfMonitors().map(s => {
     const f = clamp(normalRandom(0.9, 0.15), 0.6, 1.2);
     return {
@@ -204,6 +248,9 @@ export function generateComparisonData(): ComparisonData {
     };
   });
 
+  const lastWeekTotalCustomers = lastWeekDaily.reduce((sum, d) => sum + d.customers, 0);
+  const lastWeekTotalRevenue = lastWeekDaily.reduce((sum, d) => sum + d.revenue, 0);
+
   return {
     yesterdayCustomers,
     yesterdayRevenue: Math.floor(yesterdayOrders * yesterdayAvgOrder),
@@ -211,14 +258,17 @@ export function generateComparisonData(): ComparisonData {
     yesterdayConversionRate: parseFloat(yesterdayConversion.toFixed(3)),
     yesterdayAvgOrderValue: yesterdayAvgOrder,
 
-    lastWeekCustomers: lastWeekCustomers * 7,
-    lastWeekRevenue: Math.floor(lastWeekOrders * lastWeekAvgOrder * 7),
+    lastWeekCustomers: lastWeekTotalCustomers,
+    lastWeekRevenue: lastWeekTotalRevenue,
     lastWeekPickupRate: parseFloat(clamp(todayMetrics.overallPickupRate * clamp(normalRandom(1, 0.05), 0.88, 1.12), 0.4, 0.95).toFixed(3)),
     lastWeekConversionRate: parseFloat(lastWeekConversion.toFixed(3)),
     lastWeekAvgOrderValue: lastWeekAvgOrder,
 
     yesterdayHourlyData: yesterdayHourly,
     todayHourlyData: todayHourly,
+
+    thisWeekDailyData: thisWeekDaily,
+    lastWeekDailyData: lastWeekDaily,
 
     yesterdayShelves,
     lastWeekShelves
