@@ -1,4 +1,4 @@
-import type { ProductBehavior, ShelfMonitor, RealtimeMetrics, HeatmapData, HourlyData, Product, Order, CartItem } from '@/types';
+import type { ProductBehavior, ShelfMonitor, RealtimeMetrics, HeatmapData, HourlyData, Product, Order, CartItem, ComparisonData } from '@/types';
 import { products, shelfInfo } from './products';
 import { randomInt, randomFloat, clamp, normalRandom, randomPick, generateOrderId, generateSessionId } from '@/utils/randomUtils';
 import { formatDate, getWeekday } from '@/utils/formatters';
@@ -154,6 +154,75 @@ export function addDeltaToBehaviors(prev: ProductBehavior[]): ProductBehavior[] 
     }
     return b;
   });
+}
+
+export function generateComparisonData(): ComparisonData {
+  const todayMetrics = generateRealtimeMetrics();
+
+  const yesterdayFactor = clamp(normalRandom(0.92, 0.12), 0.6, 1.25);
+  const lastWeekFactor = clamp(normalRandom(0.97, 0.08), 0.7, 1.3);
+
+  const yesterdayCustomers = Math.floor(todayMetrics.todayCustomers * yesterdayFactor);
+  const yesterdayAvgOrder = parseFloat(clamp(todayMetrics.avgOrderValue * clamp(normalRandom(1, 0.05), 0.9, 1.1), 100, 900).toFixed(2));
+  const yesterdayConversion = clamp(todayMetrics.overallConversionRate * clamp(normalRandom(1, 0.08), 0.85, 1.15), 0.18, 0.72);
+  const yesterdayOrders = Math.floor(yesterdayCustomers * yesterdayConversion);
+
+  const lastWeekCustomers = Math.floor(todayMetrics.todayCustomers * lastWeekFactor);
+  const lastWeekAvgOrder = parseFloat(clamp(todayMetrics.avgOrderValue * clamp(normalRandom(1, 0.06), 0.88, 1.12), 100, 900).toFixed(2));
+  const lastWeekConversion = clamp(todayMetrics.overallConversionRate * clamp(normalRandom(1, 0.1), 0.82, 1.18), 0.18, 0.72);
+  const lastWeekOrders = Math.floor(lastWeekCustomers * lastWeekConversion);
+
+  const todayHourly: HourlyData[] = [];
+  const yesterdayHourly: HourlyData[] = [];
+  for (let h = 0; h < 24; h++) {
+    const th = generateHourlyData(h);
+    todayHourly.push(th);
+    const yFactor = clamp(normalRandom(0.95, 0.2), 0.5, 1.4);
+    yesterdayHourly.push({
+      hour: h,
+      customers: Math.floor(th.customers * yFactor),
+      revenue: Math.floor(th.revenue * yFactor)
+    });
+  }
+
+  const yesterdayShelves = generateShelfMonitors().map(s => {
+    const f = clamp(normalRandom(0.9, 0.15), 0.6, 1.2);
+    return {
+      ...s,
+      totalPickups: Math.floor(s.totalPickups * f),
+      totalPurchases: Math.floor(s.totalPurchases * f),
+      conversionRate: parseFloat(clamp(s.conversionRate * clamp(normalRandom(1, 0.1), 0.8, 1.2), 0.15, 0.78).toFixed(3))
+    };
+  });
+  const lastWeekShelves = generateShelfMonitors().map(s => {
+    const f = clamp(normalRandom(0.95, 0.12), 0.65, 1.25);
+    return {
+      ...s,
+      totalPickups: Math.floor(s.totalPickups * f),
+      totalPurchases: Math.floor(s.totalPurchases * f),
+      conversionRate: parseFloat(clamp(s.conversionRate * clamp(normalRandom(1, 0.1), 0.8, 1.2), 0.15, 0.78).toFixed(3))
+    };
+  });
+
+  return {
+    yesterdayCustomers,
+    yesterdayRevenue: Math.floor(yesterdayOrders * yesterdayAvgOrder),
+    yesterdayPickupRate: parseFloat(clamp(todayMetrics.overallPickupRate * clamp(normalRandom(1, 0.06), 0.85, 1.15), 0.4, 0.95).toFixed(3)),
+    yesterdayConversionRate: parseFloat(yesterdayConversion.toFixed(3)),
+    yesterdayAvgOrderValue: yesterdayAvgOrder,
+
+    lastWeekCustomers: lastWeekCustomers * 7,
+    lastWeekRevenue: Math.floor(lastWeekOrders * lastWeekAvgOrder * 7),
+    lastWeekPickupRate: parseFloat(clamp(todayMetrics.overallPickupRate * clamp(normalRandom(1, 0.05), 0.88, 1.12), 0.4, 0.95).toFixed(3)),
+    lastWeekConversionRate: parseFloat(lastWeekConversion.toFixed(3)),
+    lastWeekAvgOrderValue: lastWeekAvgOrder,
+
+    yesterdayHourlyData: yesterdayHourly,
+    todayHourlyData: todayHourly,
+
+    yesterdayShelves,
+    lastWeekShelves
+  };
 }
 
 const ASSOCIATION_PATTERNS: string[][] = [

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { AppState, Order, ExportRecord, Strategy, AppliedStrategyResult, AssociationRule, Product, StockRestockLog } from '@/types';
-import { generateProductBehaviors, generateShelfMonitors, generateRealtimeMetrics, generateHeatmapData, pickRandomProduct, addDeltaToMetrics, addDeltaToBehaviors, generateMockOrders } from '@/data/mockGenerator';
+import { generateProductBehaviors, generateShelfMonitors, generateRealtimeMetrics, generateHeatmapData, pickRandomProduct, addDeltaToMetrics, addDeltaToBehaviors, generateMockOrders, generateComparisonData } from '@/data/mockGenerator';
 import { generateSessionId, generateOrderId, randomId } from '@/utils/randomUtils';
 import { getProductById, products as initialProducts } from '@/data/products';
 import { executeExport } from '@/utils/exportUtils';
@@ -24,6 +24,7 @@ const initialStrategies = generateDefaultStrategies();
 const initialSimulatedOrders = generateMockOrders(800);
 const initialPaidOrders = initialSimulatedOrders.filter(o => o.status === 'paid');
 const initialAssociationRules = generateAssociationRules(initialPaidOrders);
+const initialComparisonData = generateComparisonData();
 
 export const useAppStore = create<AppState>((set, get) => ({
   cart: {
@@ -38,6 +39,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   isPhoneBound: false,
 
   realtimeMetrics: initialMetrics,
+  comparisonData: initialComparisonData,
+  compareMode: 'realtime',
+  compareScope: 'day',
   productBehaviors: initialBehaviors,
   shelfMonitors: initialShelves,
   heatmapData: initialHeatmap,
@@ -54,6 +58,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     isPhoneBound: true,
     cart: state.cart ? { ...state.cart, boundPhone: phone } : null
   })),
+
+  setCompareMode: (mode) => set({ compareMode: mode }),
+  setCompareScope: (scope) => set({ compareScope: scope }),
 
   showProductDetail: (product) => set({
     activeProduct: product,

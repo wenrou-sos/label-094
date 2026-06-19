@@ -89,6 +89,26 @@ export interface RealtimeMetrics {
   lastUpdated: number;
 }
 
+export interface ComparisonData {
+  yesterdayCustomers: number;
+  yesterdayRevenue: number;
+  yesterdayPickupRate: number;
+  yesterdayConversionRate: number;
+  yesterdayAvgOrderValue: number;
+
+  lastWeekCustomers: number;
+  lastWeekRevenue: number;
+  lastWeekPickupRate: number;
+  lastWeekConversionRate: number;
+  lastWeekAvgOrderValue: number;
+
+  yesterdayHourlyData: HourlyData[];
+  todayHourlyData: HourlyData[];
+
+  yesterdayShelves: ShelfMonitor[];
+  lastWeekShelves: ShelfMonitor[];
+}
+
 export interface HourlyData {
   hour: number;
   customers: number;
@@ -130,6 +150,9 @@ export interface AppState {
   isPhoneBound: boolean;
 
   realtimeMetrics: RealtimeMetrics;
+  comparisonData: ComparisonData;
+  compareMode: 'realtime' | 'compare';
+  compareScope: 'day' | 'week';
   productBehaviors: ProductBehavior[];
   shelfMonitors: ShelfMonitor[];
   heatmapData: HeatmapData[];
@@ -152,6 +175,9 @@ export interface AppState {
   createOrder: () => Order;
   simulatePayment: (orderId: string, method: 'wechat' | 'alipay') => Promise<boolean>;
   clearReceipt: () => void;
+
+  setCompareMode: (mode: 'realtime' | 'compare') => void;
+  setCompareScope: (scope: 'day' | 'week') => void;
 
   refreshMetrics: () => void;
   refreshHeatmap: (dimension: HeatmapDimension) => void;
